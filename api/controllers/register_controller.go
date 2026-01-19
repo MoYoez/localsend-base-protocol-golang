@@ -7,7 +7,6 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
-	"github.com/moyoez/localsend-base-protocol-golang/api/models"
 	"github.com/moyoez/localsend-base-protocol-golang/boardcast"
 	"github.com/moyoez/localsend-base-protocol-golang/types"
 )
@@ -42,9 +41,6 @@ func (ctrl *RegisterController) HandleRegister(c *gin.Context) {
 	remoteHost, _, splitErr := net.SplitHostPort(c.ClientIP())
 	if splitErr != nil || remoteHost == "" {
 		remoteHost = c.ClientIP()
-	}
-	if self := models.GetSelfDevice(); self == nil || self.Fingerprint != incoming.Fingerprint {
-		models.CacheDiscoveredDevice(incoming, remoteHost)
 	}
 
 	if ctrl.handler != nil {

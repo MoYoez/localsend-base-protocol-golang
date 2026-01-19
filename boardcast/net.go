@@ -82,7 +82,10 @@ func ListenMulticastUsingUDP(self *types.VersionMessage) {
 				log.Errorf("Unexpected UDP address: %v\n", castErr)
 				continue
 			}
-			share.SetUserScanCurrent(incoming.Fingerprint, incoming)
+			share.SetUserScanCurrent(incoming.Fingerprint, share.UserScanCurrentItem{
+				Ipaddress:      udpAddr.IP.String(),
+				VersionMessage: incoming,
+			})
 			go func(remote types.VersionMessage, remoteAddr *net.UDPAddr) {
 				// Call the /register callback using HTTP/TCP to send the device information to the remote device.
 				if callbackErr := CallbackMulticastMessageUsingTCP(remoteAddr, self, &remote); callbackErr != nil {
@@ -393,7 +396,10 @@ func ListenMulticastUsingHTTP(self *types.VersionMessage) {
 				log.Infof("ListenMulticastUsingHTTP: discovered device at %s: %s (fingerprint: %s)", url, remote.Alias, remote.Fingerprint)
 				// Store the discovered device
 				if remote.Fingerprint != "" {
-					share.SetUserScanCurrent(remote.Fingerprint, remote)
+					share.SetUserScanCurrent(remote.Fingerprint, share.UserScanCurrentItem{
+						Ipaddress:      ip,
+						VersionMessage: remote,
+					})
 				}
 			}(ip)
 		}

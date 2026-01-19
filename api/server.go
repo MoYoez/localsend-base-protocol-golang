@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 	"github.com/moyoez/localsend-base-protocol-golang/api/controllers"
+	"github.com/moyoez/localsend-base-protocol-golang/api/middlewares"
 	"github.com/moyoez/localsend-base-protocol-golang/api/models"
 	"github.com/moyoez/localsend-base-protocol-golang/tool"
 	"github.com/moyoez/localsend-base-protocol-golang/types"
@@ -71,6 +72,11 @@ func (s *Server) setupRoutes() *gin.Engine {
 		v2.POST("/prepare-upload", uploadCtrl.HandlePrepareUpload)
 		v2.POST("/upload", uploadCtrl.HandleUpload)
 		v2.POST("/cancel", cancelCtrl.HandleCancel)
+	}
+	self := engine.Group("/api/self/v1", middlewares.OnlyAllowLocal)
+	{
+		self.GET("/scan-current", controllers.UserScanCurrent)
+		self.POST("/file-uploader", controllers.UserFileUploader)
 	}
 
 	return engine
