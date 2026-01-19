@@ -22,6 +22,9 @@ func main() {
 	if cfg.UseMultcastPort > 0 {
 		boardcast.SetMultcastPort(cfg.UseMultcastPort)
 	}
+	if cfg.UseDefaultUploadFolder != "" {
+		api.DefaultUploadFolder = cfg.UseDefaultUploadFolder
+	}
 
 	message := &types.VersionMessage{
 		Alias:       appCfg.Alias,
@@ -34,6 +37,7 @@ func main() {
 		Download:    appCfg.Download,
 		Announce:    appCfg.Announce,
 	}
+	api.SetSelfDevice(message)
 	if cfg.Log == "" {
 		log.SetLevel(log.DebugLevel)
 	} else {

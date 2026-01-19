@@ -8,11 +8,13 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/moyoez/localsend-base-protocol-golang/boardcast"
@@ -37,13 +39,24 @@ type Handler struct {
 	OnCancel        func(sessionId string) error
 }
 
-const defaultUploadDir = "uploads"
-
 var (
-	uploadSessionMu sync.RWMutex
-	uploadSessions  = map[string]map[string]types.FileInfo{}
-	uploadValidated = map[string]bool{}
+	uploadSessionMu     sync.RWMutex
+	DefaultUploadFolder = "uploads"
+	uploadSessions      = map[string]map[string]types.FileInfo{}
+	uploadValidated     = map[string]bool{}
+
+	selfDeviceMu sync.RWMutex
+	selfDevice   *types.VersionMessage
+
+	deviceCacheMu sync.RWMutex
+	deviceCache   = map[string]discoveredDevice{}
 )
+
+type discoveredDevice struct {
+	info     types.VersionMessage
+	address  string
+	lastSeen time.Time
+}
 
 func cacheUploadSession(sessionId string, files map[string]types.FileInfo) {
 	uploadSessionMu.Lock()
@@ -98,6 +111,62 @@ func markSessionValidated(sessionId string) {
 	uploadValidated[sessionId] = true
 }
 
+// SetSelfDevice sets the local device info used for user-side scanning.
+func SetSelfDevice(device *types.VersionMessage) {
+	selfDeviceMu.Lock()
+	defer selfDeviceMu.Unlock()
+	selfDevice = device
+}
+
+func getSelfDevice() *types.VersionMessage {
+	selfDeviceMu.RLock()
+	defer selfDeviceMu.RUnlock()
+	if selfDevice == nil {
+		return nil
+	}
+	copied := *selfDevice
+	return &copied
+}
+
+func deviceCacheKey(info *types.VersionMessage, address string) string {
+	if info == nil {
+		return ""
+	}
+	if info.Fingerprint != "" {
+		return info.Fingerprint
+	}
+	return fmt.Sprintf("%s|%s|%d", address, info.Alias, info.Port)
+}
+
+func cacheDiscoveredDevice(info *types.VersionMessage, address string) {
+	if info == nil {
+		return
+	}
+	key := deviceCacheKey(info, address)
+	if key == "" {
+		return
+	}
+	deviceCacheMu.Lock()
+	defer deviceCacheMu.Unlock()
+	deviceCache[key] = discoveredDevice{
+		info:     *info,
+		address:  address,
+		lastSeen: time.Now(),
+	}
+}
+
+func listRecentDevices(since time.Time) []discoveredDevice {
+	deviceCacheMu.RLock()
+	defer deviceCacheMu.RUnlock()
+	devices := make([]discoveredDevice, 0, len(deviceCache))
+	for _, device := range deviceCache {
+		if device.lastSeen.After(since) || device.lastSeen.Equal(since) {
+			devices = append(devices, device)
+		}
+	}
+	return devices
+}
+
 // NewDefaultHandler returns a default Handler implementation.
 func NewDefaultHandler() *Handler {
 	return &Handler{
@@ -133,7 +202,7 @@ func NewDefaultHandler() *Handler {
 				return fmt.Errorf("file metadata not found")
 			}
 
-			if err := os.MkdirAll(filepath.Join(defaultUploadDir, sessionId), 0o755); err != nil {
+			if err := os.MkdirAll(filepath.Join(DefaultUploadFolder, sessionId), 0o755); err != nil {
 				return fmt.Errorf("create upload dir failed: %w", err)
 			}
 
@@ -142,7 +211,7 @@ func NewDefaultHandler() *Handler {
 				fileName = fileId
 			}
 			fileName = filepath.Base(fileName)
-			targetPath := filepath.Join(defaultUploadDir, sessionId, fmt.Sprintf("%s_%s", fileId, fileName))
+			targetPath := filepath.Join(DefaultUploadFolder, sessionId, fmt.Sprintf("%s_%s", fileId, fileName))
 
 			file, err := os.Create(targetPath)
 			if err != nil {
@@ -195,8 +264,12 @@ func NewServer(port int, protocol string, handler *Handler) *Server {
 	}
 }
 
-// Start starts the HTTP server
-func (s *Server) Start() error {
+// Handler returns the HTTP handler with all registered endpoints.
+func (s *Server) Handler() http.Handler {
+	return s.buildMux()
+}
+
+func (s *Server) buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	// Register API endpoints
@@ -204,6 +277,13 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/localsend/v2/prepare-upload", s.handlePrepareUpload)
 	mux.HandleFunc("/api/localsend/v2/upload", s.handleUpload)
 	mux.HandleFunc("/api/localsend/v2/cancel", s.handleCancel)
+
+	return mux
+}
+
+// Start starts the HTTP server
+func (s *Server) Start() error {
+	mux := s.buildMux()
 
 	s.mu.Lock()
 	s.server = &http.Server{
@@ -287,6 +367,15 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Debugf("Received register request from %s (fingerprint: %s)", incoming.Alias, incoming.Fingerprint)
+
+	remoteHost, _, splitErr := net.SplitHostPort(r.RemoteAddr)
+	if splitErr != nil || remoteHost == "" {
+		remoteHost = r.RemoteAddr
+	}
+	if self := getSelfDevice(); self == nil || self.Fingerprint != incoming.Fingerprint {
+
+		cacheDiscoveredDevice(incoming, remoteHost)
+	}
 
 	// Call the registered callback if available
 	if s.handler.OnRegister != nil {

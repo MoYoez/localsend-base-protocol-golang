@@ -4,10 +4,11 @@ import "flag"
 
 // Config holds runtime overrides from CLI flags.
 type Config struct {
-	Log                string
-	UseMultcastAddress string
-	UseMultcastPort    int
-	UseConfigPath      string
+	Log                    string
+	UseMultcastAddress     string
+	UseMultcastPort        int
+	UseConfigPath          string
+	UseDefaultUploadFolder string
 }
 
 // SetFlags parses CLI flags and returns the override config.
@@ -17,6 +18,6 @@ func SetFlags() Config {
 	flag.StringVar(&cfg.UseMultcastAddress, "useMultcastAddress", "", "override multicast address")
 	flag.IntVar(&cfg.UseMultcastPort, "useMultcastPort", 0, "override multicast port")
 	flag.StringVar(&cfg.UseConfigPath, "useConfigPath", "", "override config file path")
-	flag.Parse()
+	flag.StringVar(&cfg.UseDefaultUploadFolder, "useDefaultUploadFolder", "", "override default upload folder")
 	return cfg
 }

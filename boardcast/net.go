@@ -2,10 +2,13 @@ package boardcast
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -78,6 +81,7 @@ func ListenMulticastUsingUDP(self *types.VersionMessage) {
 				log.Errorf("Unexpected UDP address: %v\n", castErr)
 				continue
 			}
+
 			go func(remote types.VersionMessage, remoteAddr *net.UDPAddr) {
 				// Call the /register callback using HTTP/TCP to send the device information to the remote device.
 				if callbackErr := CallbackMulticastMessageUsingTCP(remoteAddr, self, &remote); callbackErr != nil {
@@ -97,23 +101,77 @@ func SendMulticastUsingUDP(message *types.VersionMessage) error {
 	if err != nil {
 		return fmt.Errorf("failed to resolve UDP address: %v", err)
 	}
-	c, err := net.DialUDP("udp4", nil, addr)
-	if err != nil {
+	var c *net.UDPConn
+	dialConn := func() error {
+		conn, dialErr := net.DialUDP("udp4", nil, addr)
+		if dialErr != nil {
+			return dialErr
+		}
+		if c != nil {
+			_ = c.Close()
+		}
+		c = conn
+		return nil
+	}
+	if err := dialConn(); err != nil {
 		return fmt.Errorf("failed to dial UDP address: %v", err)
 	}
-	defer c.Close()
 	for {
+		if c == nil {
+			if err := dialConn(); err != nil {
+				log.Errorf("failed to dial UDP address: %v", err)
+				time.Sleep(5 * time.Second)
+				continue
+			}
+		}
 		payload, err := sonic.Marshal(message)
 		if err != nil {
 			log.Errorf("failed to marshal message: %v", err)
+			time.Sleep(5 * time.Second)
 			continue
 		}
 		_, err = c.Write(payload)
 		if err != nil {
-			log.Errorf("failed to write message: %v", err)
+			if IsAddrNotAvailableError(err) {
+				log.Warnf("IP address not available, please check your network environment and try again: %v", err)
+				_ = c.Close()
+				c = nil
+			} else {
+				log.Errorf("failed to write message: %v", err)
+			}
 		}
 		time.Sleep(5 * time.Second)
 	}
+}
+
+// SendMulticastOnce sends a single multicast message to the multicast address.
+func SendMulticastOnce(message *types.VersionMessage) error {
+	if message == nil {
+		return fmt.Errorf("missing message")
+	}
+	addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", multcastAddress, multcastPort))
+	if err != nil {
+		return fmt.Errorf("failed to resolve UDP address: %v", err)
+	}
+	c, err := net.DialUDP("udp4", nil, addr)
+	if err != nil {
+		if IsAddrNotAvailableError(err) {
+			return fmt.Errorf("IP address not available, please check your network environment and try again: %w", err)
+		}
+		return fmt.Errorf("failed to dial UDP address: %v", err)
+	}
+	defer c.Close()
+	payload, err := sonic.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("failed to marshal message: %v", err)
+	}
+	if _, err := c.Write(payload); err != nil {
+		if IsAddrNotAvailableError(err) {
+			return fmt.Errorf("IP address not available, please check your network environment and try again: %w", err)
+		}
+		return fmt.Errorf("failed to write message: %v", err)
+	}
+	return nil
 }
 
 // CallbackMulticastMessageUsingTCP calls the /register callback using HTTP/TCP.
@@ -171,10 +229,27 @@ func CallbackMulticastMessageUsingUDP(message *types.VersionMessage) error {
 	}
 	_, err = c.Write(payload)
 	if err != nil {
+		if IsAddrNotAvailableError(err) {
+			return fmt.Errorf("IP address not available, please check your network environment and try again: %w", err)
+		}
 		return fmt.Errorf("failed to write message: %v", err)
 	}
 	log.Debugf("Sent UDP multicast message to %s", addr.String())
 	return nil
+}
+
+// IsAddrNotAvailableError detects address-not-available errors across platforms.
+func IsAddrNotAvailableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, syscall.EADDRNOTAVAIL) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "can't assign requested address") ||
+		strings.Contains(msg, "cannot assign requested address") ||
+		strings.Contains(msg, "address not available")
 }
 
 // Legacy: HTTP-only fallback for devices that don't support UDP multicast.
