@@ -7,6 +7,7 @@ require (
 	github.com/bytedance/sonic v1.14.2
 	github.com/charmbracelet/log v0.4.2
 	github.com/google/uuid v1.6.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

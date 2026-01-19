@@ -20,12 +20,33 @@ const (
 	defaultMultcastPort    = 53317 // UDP & HTTP
 )
 
+var (
+	multcastAddress = defaultMultcastAddress
+	multcastPort    = defaultMultcastPort
+)
+
+// SetMultcastAddress overrides the default multicast address if non-empty.
+func SetMultcastAddress(address string) {
+	if address == "" {
+		return
+	}
+	multcastAddress = address
+}
+
+// SetMultcastPort overrides the default multicast port if positive.
+func SetMultcastPort(port int) {
+	if port <= 0 {
+		return
+	}
+	multcastPort = port
+}
+
 // ListenMulticastUsingUDP listens for multicast UDP broadcasts to discover other devices.
 // Only respond to callbacks if the remote device announce=true and is not the same device.
 // * With Register Callback
 // * With Prepare-upload Callback
 func ListenMulticastUsingUDP(self *types.VersionMessage) {
-	addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", defaultMultcastAddress, defaultMultcastPort))
+	addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", multcastAddress, multcastPort))
 	if err != nil {
 		log.Fatalf("Failed to resolve UDP address: %v", err)
 	}
@@ -72,7 +93,7 @@ func ListenMulticastUsingUDP(self *types.VersionMessage) {
 // SendMulticastUsingUDP sends a multicast message to the multicast address to announce the device.
 // https://github.com/localsend/protocol/blob/main/README.md#31-multicast-udp-default
 func SendMulticastUsingUDP(message *types.VersionMessage) error {
-	addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", defaultMultcastAddress, defaultMultcastPort))
+	addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", multcastAddress, multcastPort))
 	if err != nil {
 		return fmt.Errorf("failed to resolve UDP address: %v", err)
 	}
@@ -135,7 +156,7 @@ func CallbackMulticastMessageUsingUDP(message *types.VersionMessage) error {
 	response := *message
 	// The UDP response needs to explicitly mark announce=false to avoid triggering a callback from the remote device.
 	response.Announce = false
-	addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", defaultMultcastAddress, defaultMultcastPort))
+	addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", multcastAddress, multcastPort))
 	if err != nil {
 		return fmt.Errorf("failed to resolve UDP address: %v", err)
 	}
@@ -190,7 +211,7 @@ func ListenMulticastUsingHTTP(self *types.VersionMessage) {
 	}
 
 	for _, ip := range targets {
-		url := fmt.Sprintf("http://%s:%d/api/localsend/v2/register", ip, defaultMultcastPort)
+		url := fmt.Sprintf("http://%s:%d/api/localsend/v2/register", ip, multcastPort)
 		req, err := http.NewRequest("POST", url, bytes.NewReader(payloadBytes))
 		if err != nil {
 			log.Warnf("ListenMulticastUsingHTTP: failed to create request for %s: %v", url, err)
