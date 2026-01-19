@@ -1,0 +1,59 @@
+package controllers
+
+import (
+	"io"
+	"net"
+	"net/http"
+
+	"github.com/charmbracelet/log"
+	"github.com/gin-gonic/gin"
+	"github.com/moyoez/localsend-base-protocol-golang/api/models"
+	"github.com/moyoez/localsend-base-protocol-golang/boardcast"
+	"github.com/moyoez/localsend-base-protocol-golang/types"
+)
+
+type RegisterController struct {
+	handler types.HandlerInterface
+}
+
+func NewRegisterController(handler types.HandlerInterface) *RegisterController {
+	return &RegisterController{
+		handler: handler,
+	}
+}
+
+func (ctrl *RegisterController) HandleRegister(c *gin.Context) {
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		log.Errorf("Failed to read register request body: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read request body"})
+		return
+	}
+
+	incoming, err := boardcast.ParseVersionMessageFromBody(body)
+	if err != nil {
+		log.Errorf("Failed to parse register request: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	log.Debugf("Received register request from %s (fingerprint: %s)", incoming.Alias, incoming.Fingerprint)
+
+	remoteHost, _, splitErr := net.SplitHostPort(c.ClientIP())
+	if splitErr != nil || remoteHost == "" {
+		remoteHost = c.ClientIP()
+	}
+	if self := models.GetSelfDevice(); self == nil || self.Fingerprint != incoming.Fingerprint {
+		models.CacheDiscoveredDevice(incoming, remoteHost)
+	}
+
+	if ctrl.handler != nil {
+		if err := ctrl.handler.OnRegister(incoming); err != nil {
+			log.Errorf("Register callback error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
