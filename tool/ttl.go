@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	DefaultTTL = 1 * time.Second
+	DefaultTTL = 3600 * time.Second
 )
 
 var (

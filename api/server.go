@@ -42,6 +42,7 @@ const defaultUploadDir = "uploads"
 var (
 	uploadSessionMu sync.RWMutex
 	uploadSessions  = map[string]map[string]types.FileInfo{}
+	uploadValidated = map[string]bool{}
 )
 
 func cacheUploadSession(sessionId string, files map[string]types.FileInfo) {
@@ -82,6 +83,19 @@ func removeUploadSession(sessionId string) {
 	uploadSessionMu.Lock()
 	defer uploadSessionMu.Unlock()
 	delete(uploadSessions, sessionId)
+	delete(uploadValidated, sessionId)
+}
+
+func isSessionValidated(sessionId string) bool {
+	uploadSessionMu.RLock()
+	defer uploadSessionMu.RUnlock()
+	return uploadValidated[sessionId]
+}
+
+func markSessionValidated(sessionId string) {
+	uploadSessionMu.Lock()
+	defer uploadSessionMu.Unlock()
+	uploadValidated[sessionId] = true
 }
 
 // NewDefaultHandler returns a default Handler implementation.
@@ -154,8 +168,16 @@ func NewDefaultHandler() *Handler {
 				}
 			}
 
-			removeUploadedFile(sessionId, fileId)
 			log.Infof("Upload saved: sessionId=%s, fileId=%s, path=%s", sessionId, fileId, targetPath)
+			return nil
+		},
+		OnCancel: func(sessionId string) error {
+			log.Infof("Received file transfer cancel request: sessionId=%s", sessionId)
+			if !tool.QuerySessionIsValid(sessionId) {
+				return fmt.Errorf("session %s not found", sessionId)
+			}
+			removeUploadSession(sessionId)
+			log.Infof("Session %s canceled", sessionId)
 			return nil
 		},
 	}
@@ -378,10 +400,13 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate session availability
-	if !tool.QuerySessionIsValid(sessionId) {
-		log.Errorf("Invalid sessionId: %s", sessionId)
-		http.Error(w, "Blocked by another session", http.StatusConflict)
-		return
+	if !isSessionValidated(sessionId) {
+		if !tool.QuerySessionIsValid(sessionId) {
+			log.Errorf("Invalid sessionId: %s", sessionId)
+			http.Error(w, "Blocked by another session", http.StatusConflict)
+			return
+		}
+		markSessionValidated(sessionId)
 	}
 
 	// Get remote address for IP validation
