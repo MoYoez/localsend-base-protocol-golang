@@ -11,7 +11,7 @@ import (
 // ttl
 
 type UserScanCurrentItem struct {
-	Ipaddress string
+	Ipaddress string `json:"ip_address"`
 	types.VersionMessage
 }
 
