@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/charmbracelet/log"
 	"github.com/moyoez/localsend-base-protocol-golang/tool"
 	"github.com/moyoez/localsend-base-protocol-golang/types"
 )
@@ -46,6 +45,6 @@ func CancelSession(targetAddr *net.UDPAddr, remote *types.VersionMessage, sessio
 		return fmt.Errorf("cancel request failed: %s", resp.Status)
 	}
 
-	log.Infof("Cancel request sent successfully to %s", url)
+	tool.DefaultLogger.Infof("Cancel request sent successfully to %s", url)
 	return nil
 }

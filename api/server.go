@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 	"github.com/moyoez/localsend-base-protocol-golang/api/controllers"
 	"github.com/moyoez/localsend-base-protocol-golang/api/middlewares"
@@ -26,13 +25,13 @@ type Server struct {
 	mu       sync.RWMutex
 }
 
+// DefaultUploadFolder is the default folder for uploads
+var DefaultUploadFolder = "uploads"
+
 // SetSelfDevice sets the local device info used for user-side scanning.
 func SetSelfDevice(device *types.VersionMessage) {
 	models.SetSelfDevice(device)
 }
-
-// DefaultUploadFolder is the default folder for uploads
-var DefaultUploadFolder = "uploads"
 
 func init() {
 	models.DefaultUploadFolder = DefaultUploadFolder
@@ -96,7 +95,7 @@ func (s *Server) Start() error {
 	s.mu.Unlock()
 
 	address := fmt.Sprintf("%s://0.0.0.0:%d", s.protocol, s.port)
-	log.Infof("Starting API server on %s", address)
+	tool.DefaultLogger.Infof("Starting API server on %s", address)
 
 	if s.protocol == "https" {
 		// Generate self-signed TLS certificate
@@ -129,7 +128,7 @@ func (s *Server) Start() error {
 		}
 		s.mu.Unlock()
 
-		log.Infof("TLS certificate generated and configured for HTTPS")
+		tool.DefaultLogger.Infof("TLS certificate generated and configured for HTTPS")
 		return s.server.ListenAndServeTLS("", "")
 	}
 

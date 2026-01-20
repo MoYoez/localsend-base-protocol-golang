@@ -3,7 +3,6 @@ package controllers
 import (
 	"net/http"
 
-	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 	"github.com/moyoez/localsend-base-protocol-golang/api/models"
 	"github.com/moyoez/localsend-base-protocol-golang/tool"
@@ -25,26 +24,26 @@ func (ctrl *UploadController) HandlePrepareUpload(c *gin.Context) {
 
 	body, err := c.GetRawData()
 	if err != nil {
-		log.Errorf("Failed to read prepare-upload request body: %v", err)
+		tool.DefaultLogger.Errorf("Failed to read prepare-upload request body: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read request body"})
 		return
 	}
 
 	request, err := models.ParsePrepareUploadRequest(body)
 	if err != nil {
-		log.Errorf("Failed to parse prepare-upload request: %v", err)
+		tool.DefaultLogger.Errorf("Failed to parse prepare-upload request: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
-	log.Debugf("Received prepare-upload request from %s (pin: %s)", request.Info.Alias, pin)
+	tool.DefaultLogger.Debugf("Received prepare-upload request from %s (pin: %s)", request.Info.Alias, pin)
 
 	var response *types.PrepareUploadResponse
 	if ctrl.handler != nil {
 		var callbackErr error
 		response, callbackErr = ctrl.handler.OnPrepareUpload(request, pin)
 		if callbackErr != nil {
-			log.Errorf("Prepare-upload callback error: %v", callbackErr)
+			tool.DefaultLogger.Errorf("Prepare-upload callback error: %v", callbackErr)
 			errorMsg := callbackErr.Error()
 
 			switch errorMsg {
@@ -84,14 +83,14 @@ func (ctrl *UploadController) HandleUpload(c *gin.Context) {
 	token := c.Query("token")
 
 	if sessionId == "" || fileId == "" || token == "" {
-		log.Errorf("Missing required parameters: sessionId=%s, fileId=%s, token=%s", sessionId, fileId, token)
+		tool.DefaultLogger.Errorf("Missing required parameters: sessionId=%s, fileId=%s, token=%s", sessionId, fileId, token)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing parameters"})
 		return
 	}
 
 	if !models.IsSessionValidated(sessionId) {
 		if !tool.QuerySessionIsValid(sessionId) {
-			log.Errorf("Invalid sessionId: %s", sessionId)
+			tool.DefaultLogger.Errorf("Invalid sessionId: %s", sessionId)
 			c.JSON(http.StatusConflict, gin.H{"error": "Blocked by another session"})
 			return
 		}
@@ -99,11 +98,11 @@ func (ctrl *UploadController) HandleUpload(c *gin.Context) {
 	}
 
 	remoteAddr := c.ClientIP()
-	log.Debugf("Received upload request: sessionId=%s, fileId=%s, token=%s, remoteAddr=%s", sessionId, fileId, token, remoteAddr)
+	tool.DefaultLogger.Debugf("Received upload request: sessionId=%s, fileId=%s, token=%s, remoteAddr=%s", sessionId, fileId, token, remoteAddr)
 
 	if ctrl.handler != nil {
 		if err := ctrl.handler.OnUpload(sessionId, fileId, token, c.Request.Body, remoteAddr); err != nil {
-			log.Errorf("Upload callback error: %v", err)
+			tool.DefaultLogger.Errorf("Upload callback error: %v", err)
 			errorMsg := err.Error()
 
 			switch errorMsg {

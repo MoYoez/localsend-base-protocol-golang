@@ -14,7 +14,7 @@ func main() {
 	cfg := tool.SetFlags()
 	appCfg, err := tool.LoadConfig(cfg.UseConfigPath)
 	if err != nil {
-		log.Fatalf("%v", err)
+		tool.DefaultLogger.Fatalf("%v", err)
 	}
 	if cfg.UseMultcastAddress != "" {
 		boardcast.SetMultcastAddress(cfg.UseMultcastAddress)
@@ -25,6 +25,8 @@ func main() {
 	if cfg.UseDefaultUploadFolder != "" {
 		api.DefaultUploadFolder = cfg.UseDefaultUploadFolder
 	}
+	// initialize logger
+	tool.InitLogger()
 
 	message := &types.VersionMessage{
 		Alias:       appCfg.Alias,
@@ -39,16 +41,16 @@ func main() {
 	}
 	api.SetSelfDevice(message)
 	if cfg.Log == "" {
-		log.SetLevel(log.DebugLevel)
+		tool.DefaultLogger.SetLevel(log.DebugLevel)
 	} else {
 		switch strings.ToLower(cfg.Log) {
 		case "dev":
-			log.SetLevel(log.DebugLevel)
+			tool.DefaultLogger.SetLevel(log.DebugLevel)
 		case "prod":
-			log.SetLevel(log.InfoLevel)
+			tool.DefaultLogger.SetLevel(log.InfoLevel)
 		default:
-			log.Warnf("Unknown log mode %q, using debug level", cfg.Log)
-			log.SetLevel(log.DebugLevel)
+			tool.DefaultLogger.Warnf("Unknown log mode %q, using debug level", cfg.Log)
+			tool.DefaultLogger.SetLevel(log.DebugLevel)
 		}
 	}
 
@@ -57,15 +59,15 @@ func main() {
 	apiServer := api.NewServer(appCfg.Port, appCfg.Protocol, handler)
 	go func() {
 		if err := apiServer.Start(); err != nil {
-			log.Fatalf("API server startup failed: %v", err)
+			tool.DefaultLogger.Fatalf("API server startup failed: %v", err)
 		}
 	}()
 
 	if cfg.UseLegacyMode {
-		log.Info("Using Legacy Mode: HTTP scanning (scanning every 30 seconds)")
+		tool.DefaultLogger.Info("Using Legacy Mode: HTTP scanning (scanning every 30 seconds)")
 		go boardcast.ListenMulticastUsingHTTP(message)
 	} else {
-		log.Info("Using UDP multicast mode")
+		tool.DefaultLogger.Info("Using UDP multicast mode")
 		go boardcast.ListenMulticastUsingUDP(message)
 		go boardcast.SendMulticastUsingUDP(message)
 	}

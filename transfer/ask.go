@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/bytedance/sonic"
-	"github.com/charmbracelet/log"
 	"github.com/moyoez/localsend-base-protocol-golang/tool"
 	"github.com/moyoez/localsend-base-protocol-golang/types"
 )
@@ -57,15 +56,15 @@ func ReadyToUploadTo(targetAddr *net.UDPAddr, remote *types.VersionMessage, requ
 
 	body, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
-		log.Warnf("Failed to read response body: %v", readErr)
+		tool.DefaultLogger.Warnf("Failed to read response body: %v", readErr)
 	} else if len(body) > 0 {
-		log.Debugf("Prepare-upload response: %s", string(body))
+		tool.DefaultLogger.Debugf("Prepare-upload response: %s", string(body))
 	}
 
 	// check status code
 	switch resp.StatusCode {
 	case StatusFinishedNoTransfer:
-		log.Infof("Prepare-upload finished with no transfer needed for %s", url)
+		tool.DefaultLogger.Infof("Prepare-upload finished with no transfer needed for %s", url)
 		return nil, nil
 	case http.StatusOK:
 		if len(body) == 0 {
@@ -81,7 +80,7 @@ func ReadyToUploadTo(targetAddr *net.UDPAddr, remote *types.VersionMessage, requ
 		if len(response.Files) == 0 {
 			return nil, fmt.Errorf("prepare-upload response missing files")
 		}
-		log.Infof("Prepare-upload request sent successfully to %s", url)
+		tool.DefaultLogger.Infof("Prepare-upload request sent successfully to %s", url)
 		return &response, nil
 	case StatusInvalidBody:
 		return nil, fmt.Errorf("prepare-upload request failed: invalid body")

@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/charmbracelet/log"
 	"github.com/moyoez/localsend-base-protocol-golang/tool"
 	"github.com/moyoez/localsend-base-protocol-golang/types"
 )
@@ -59,6 +58,6 @@ func UploadFile(targetAddr *net.UDPAddr, remote *types.VersionMessage, sessionId
 		}
 	}
 
-	log.Infof("Upload request sent successfully to %s", url)
+	tool.DefaultLogger.Infof("Upload request sent successfully to %s", url)
 	return nil
 }

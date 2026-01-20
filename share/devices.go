@@ -4,7 +4,7 @@ import (
 	"time"
 
 	ttlworker "github.com/FloatTech/ttl"
-	"github.com/charmbracelet/log"
+	"github.com/moyoez/localsend-base-protocol-golang/tool"
 	"github.com/moyoez/localsend-base-protocol-golang/types"
 )
 
@@ -25,7 +25,7 @@ var (
 
 func SetUserScanCurrent(sessionId string, data UserScanCurrentItem) {
 	UserScanCurrent.Set(sessionId, data)
-	log.Debugf("Set user scan current: %s", sessionId)
+	tool.DefaultLogger.Debugf("Set user scan current: %s", sessionId)
 }
 
 func GetUserScanCurrent(sessionId string) (UserScanCurrentItem, bool) {

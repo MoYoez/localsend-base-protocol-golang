@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/bytedance/sonic"
-	"github.com/charmbracelet/log"
 	"github.com/moyoez/localsend-base-protocol-golang/share"
 	"github.com/moyoez/localsend-base-protocol-golang/tool"
 	"github.com/moyoez/localsend-base-protocol-golang/types"
@@ -52,34 +51,34 @@ func SetMultcastPort(port int) {
 func ListenMulticastUsingUDP(self *types.VersionMessage) {
 	addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", multcastAddress, multcastPort))
 	if err != nil {
-		log.Fatalf("Failed to resolve UDP address: %v", err)
+		tool.DefaultLogger.Fatalf("Failed to resolve UDP address: %v", err)
 	}
 	c, err := net.ListenMulticastUDP("udp4", nil, addr)
 	if err != nil {
-		log.Fatalf("Failed to listen on multicast UDP address: %v", err)
+		tool.DefaultLogger.Fatalf("Failed to listen on multicast UDP address: %v", err)
 	}
 	defer c.Close()
 	c.SetReadBuffer(256 * 1024)
 	buf := make([]byte, 1024*64)
-	log.Infof("Listening on multicast UDP address: %s", addr.String())
+	tool.DefaultLogger.Infof("Listening on multicast UDP address: %s", addr.String())
 	for {
 		n, addr, err := c.ReadFrom(buf)
 		if err == nil {
 			var incoming types.VersionMessage
 			parseErr := sonic.Unmarshal(buf[:n], &incoming)
 			if parseErr != nil {
-				log.Errorf("Failed to parse UDP message: %v\n", parseErr)
+				tool.DefaultLogger.Errorf("Failed to parse UDP message: %v\n", parseErr)
 				continue
 			}
 			// Ignore non-announce or from self broadcasts.
 			if !shouldRespond(self, &incoming) {
 				continue
 			}
-			log.Debugf("Received %d bytes from %s\n", n, addr.String())
-			log.Debugf("Data: %s\n", string(buf[:n]))
+			tool.DefaultLogger.Debugf("Received %d bytes from %s\n", n, addr.String())
+			tool.DefaultLogger.Debugf("Data: %s\n", string(buf[:n]))
 			udpAddr, castErr := castToUDPAddr(addr)
 			if castErr != nil {
-				log.Errorf("Unexpected UDP address: %v\n", castErr)
+				tool.DefaultLogger.Errorf("Unexpected UDP address: %v\n", castErr)
 				continue
 			}
 			share.SetUserScanCurrent(incoming.Fingerprint, share.UserScanCurrentItem{
@@ -89,12 +88,12 @@ func ListenMulticastUsingUDP(self *types.VersionMessage) {
 			go func(remote types.VersionMessage, remoteAddr *net.UDPAddr) {
 				// Call the /register callback using HTTP/TCP to send the device information to the remote device.
 				if callbackErr := CallbackMulticastMessageUsingTCP(remoteAddr, self, &remote); callbackErr != nil {
-					log.Errorf("Failed to callback TCP register: %v\n", callbackErr)
+					tool.DefaultLogger.Errorf("Failed to callback TCP register: %v\n", callbackErr)
 				}
 			}(incoming, udpAddr)
 		} else {
 			// error reading from udp, consider using http.
-			log.Errorf("Error reading from UDP: %v\n", err)
+			tool.DefaultLogger.Errorf("Error reading from UDP: %v\n", err)
 		}
 	}
 }
@@ -124,25 +123,25 @@ func SendMulticastUsingUDP(message *types.VersionMessage) error {
 	for {
 		if c == nil {
 			if err := dialConn(); err != nil {
-				log.Errorf("failed to dial UDP address: %v", err)
+				tool.DefaultLogger.Errorf("failed to dial UDP address: %v", err)
 				time.Sleep(5 * time.Second)
 				continue
 			}
 		}
 		payload, err := sonic.Marshal(message)
 		if err != nil {
-			log.Errorf("failed to marshal message: %v", err)
+			tool.DefaultLogger.Errorf("failed to marshal message: %v", err)
 			time.Sleep(5 * time.Second)
 			continue
 		}
 		_, err = c.Write(payload)
 		if err != nil {
 			if IsAddrNotAvailableError(err) {
-				log.Warnf("IP address not available, please check your network environment and try again: %v", err)
+				tool.DefaultLogger.Warnf("IP address not available, please check your network environment and try again: %v", err)
 				_ = c.Close()
 				c = nil
 			} else {
-				log.Errorf("failed to write message: %v", err)
+				tool.DefaultLogger.Errorf("failed to write message: %v", err)
 			}
 		}
 		time.Sleep(5 * time.Second)
@@ -200,7 +199,7 @@ func CallbackMulticastMessageUsingTCP(targetAddr *net.UDPAddr, self *types.Versi
 	}
 	// Try sending register request via HTTP
 	if sendErr := sendRegisterRequest(tool.BytesToString(url), remote.Protocol, tool.BytesToString(payload)); sendErr != nil {
-		log.Warnf("Failed to send register request via HTTP: %v. Falling back to UDP multicast.", sendErr)
+		tool.DefaultLogger.Warnf("Failed to send register request via HTTP: %v. Falling back to UDP multicast.", sendErr)
 		// Fallback: Respond using UDP multicast (announce=false)
 		response := *self
 		response.Announce = false
@@ -239,7 +238,7 @@ func CallbackMulticastMessageUsingUDP(message *types.VersionMessage) error {
 		}
 		return fmt.Errorf("failed to write message: %v", err)
 	}
-	log.Debugf("Sent UDP multicast message to %s", addr.String())
+	tool.DefaultLogger.Debugf("Sent UDP multicast message to %s", addr.String())
 	return nil
 }
 
@@ -319,15 +318,15 @@ func generateNetworkIPs(ipnet *net.IPNet) []string {
 // This function runs in a loop, scanning every 30 seconds.
 func ListenMulticastUsingHTTP(self *types.VersionMessage) {
 	if self == nil {
-		log.Warn("ListenMulticastUsingHTTP: self is nil")
+		tool.DefaultLogger.Warn("ListenMulticastUsingHTTP: self is nil")
 		return
 	}
 
-	log.Info("Starting Legacy Mode HTTP scanning (scanning every 30 seconds)")
+	tool.DefaultLogger.Info("Starting Legacy Mode HTTP scanning (scanning every 30 seconds)")
 
 	payloadBytes, err := sonic.Marshal(self)
 	if err != nil {
-		log.Warnf("ListenMulticastUsingHTTP: failed to marshal self message: %v", err)
+		tool.DefaultLogger.Warnf("ListenMulticastUsingHTTP: failed to marshal self message: %v", err)
 		return
 	}
 
@@ -339,7 +338,7 @@ func ListenMulticastUsingHTTP(self *types.VersionMessage) {
 	scanOnce := func() {
 		addrs, err := net.InterfaceAddrs()
 		if err != nil {
-			log.Warnf("ListenMulticastUsingHTTP: failed to enumerate interface addresses: %v", err)
+			tool.DefaultLogger.Warnf("ListenMulticastUsingHTTP: failed to enumerate interface addresses: %v", err)
 			return
 		}
 
@@ -354,11 +353,11 @@ func ListenMulticastUsingHTTP(self *types.VersionMessage) {
 			targets = append(targets, networkIPs...)
 		}
 		if len(targets) == 0 {
-			log.Warn("ListenMulticastUsingHTTP: no usable local IPv4 addresses found")
+			tool.DefaultLogger.Warn("ListenMulticastUsingHTTP: no usable local IPv4 addresses found")
 			return
 		}
 
-		log.Debugf("ListenMulticastUsingHTTP: scanning %d IP addresses", len(targets))
+		tool.DefaultLogger.Debugf("ListenMulticastUsingHTTP: scanning %d IP addresses", len(targets))
 
 		// Scan all targets concurrently
 		for _, ip := range targets {
@@ -366,7 +365,7 @@ func ListenMulticastUsingHTTP(self *types.VersionMessage) {
 				url := fmt.Sprintf("http://%s:%d/api/localsend/v2/register", targetIP, multcastPort)
 				req, err := http.NewRequest("POST", url, bytes.NewReader(payloadBytes))
 				if err != nil {
-					log.Debugf("ListenMulticastUsingHTTP: failed to create request for %s: %v", url, err)
+					tool.DefaultLogger.Debugf("ListenMulticastUsingHTTP: failed to create request for %s: %v", url, err)
 					return
 				}
 				req.Header.Set("Content-Type", "application/json")
@@ -378,7 +377,7 @@ func ListenMulticastUsingHTTP(self *types.VersionMessage) {
 				}
 				defer resp.Body.Close()
 				if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-					log.Debugf("ListenMulticastUsingHTTP: POST to %s failed with status: %s", url, resp.Status)
+					tool.DefaultLogger.Debugf("ListenMulticastUsingHTTP: POST to %s failed with status: %s", url, resp.Status)
 					return
 				}
 
@@ -386,14 +385,14 @@ func ListenMulticastUsingHTTP(self *types.VersionMessage) {
 				var remote types.VersionMessage
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					log.Debugf("ListenMulticastUsingHTTP: failed reading response from %s: %v", url, err)
+					tool.DefaultLogger.Debugf("ListenMulticastUsingHTTP: failed reading response from %s: %v", url, err)
 					return
 				}
 				if err := sonic.Unmarshal(body, &remote); err != nil {
-					log.Debugf("ListenMulticastUsingHTTP: failed to unmarshal response from %s: %v", url, err)
+					tool.DefaultLogger.Debugf("ListenMulticastUsingHTTP: failed to unmarshal response from %s: %v", url, err)
 					return
 				}
-				log.Infof("ListenMulticastUsingHTTP: discovered device at %s: %s (fingerprint: %s)", url, remote.Alias, remote.Fingerprint)
+				tool.DefaultLogger.Infof("ListenMulticastUsingHTTP: discovered device at %s: %s (fingerprint: %s)", url, remote.Alias, remote.Fingerprint)
 				// Store the discovered device
 				if remote.Fingerprint != "" {
 					share.SetUserScanCurrent(remote.Fingerprint, share.UserScanCurrentItem{

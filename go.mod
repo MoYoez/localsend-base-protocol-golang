@@ -1,6 +1,6 @@
 module github.com/moyoez/localsend-base-protocol-golang
 
-go 1.25.0
+go 1.24.0
 
 require (
 	github.com/FloatTech/ttl v0.0.0-20250224045156-012b1463287d

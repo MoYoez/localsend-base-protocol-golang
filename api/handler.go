@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/log"
 	"github.com/moyoez/localsend-base-protocol-golang/api/models"
 	"github.com/moyoez/localsend-base-protocol-golang/tool"
 	"github.com/moyoez/localsend-base-protocol-golang/types"
@@ -62,12 +61,12 @@ func (h *Handler) OnCancel(sessionId string) error {
 func NewDefaultHandler() *Handler {
 	return &Handler{
 		onRegister: func(remote *types.VersionMessage) error {
-			log.Infof("Received device register request: %s (fingerprint: %s, port: %d)",
+			tool.DefaultLogger.Infof("Received device register request: %s (fingerprint: %s, port: %d)",
 				remote.Alias, remote.Fingerprint, remote.Port)
 			return nil
 		},
 		onPrepareUpload: func(request *types.PrepareUploadRequest, pin string) (*types.PrepareUploadResponse, error) {
-			log.Infof("Received file transfer prepare request: from %s, file count: %d, PIN: %s",
+			tool.DefaultLogger.Infof("Received file transfer prepare request: from %s, file count: %d, PIN: %s",
 				request.Info.Alias, len(request.Files), pin)
 			askSession := tool.GenerateRandomUUID()
 			response := &types.PrepareUploadResponse{
@@ -128,16 +127,16 @@ func NewDefaultHandler() *Handler {
 				}
 			}
 
-			log.Infof("Upload saved: sessionId=%s, fileId=%s, path=%s", sessionId, fileId, targetPath)
+			tool.DefaultLogger.Infof("Upload saved: sessionId=%s, fileId=%s, path=%s", sessionId, fileId, targetPath)
 			return nil
 		},
 		onCancel: func(sessionId string) error {
-			log.Infof("Received file transfer cancel request: sessionId=%s", sessionId)
+			tool.DefaultLogger.Infof("Received file transfer cancel request: sessionId=%s", sessionId)
 			if !tool.QuerySessionIsValid(sessionId) {
 				return fmt.Errorf("session %s not found", sessionId)
 			}
 			models.RemoveUploadSession(sessionId)
-			log.Infof("Session %s canceled", sessionId)
+			tool.DefaultLogger.Infof("Session %s canceled", sessionId)
 			return nil
 		},
 	}
