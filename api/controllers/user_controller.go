@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	ttlworker "github.com/FloatTech/ttl"
@@ -131,7 +132,14 @@ func UserPrepareUpload(c *gin.Context) {
 	)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Prepare upload failed: " + err.Error()})
+		errorMsg := err.Error()
+		// Check if it's a PIN-related error
+		errorMsgLower := strings.ToLower(errorMsg)
+		if strings.Contains(errorMsgLower, "pin required") || strings.Contains(errorMsgLower, "invalid pin") {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "PIN required / Invalid PIN"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Prepare upload failed: " + errorMsg})
 		return
 	}
 

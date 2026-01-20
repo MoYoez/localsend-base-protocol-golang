@@ -73,6 +73,7 @@ func LoadConfig(path string) (AppConfig, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return cfg, fmt.Errorf("failed to parse config file: %v", err)
 	}
+
 	return cfg, nil
 }
 

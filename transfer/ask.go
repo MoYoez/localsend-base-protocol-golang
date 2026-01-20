@@ -85,7 +85,28 @@ func ReadyToUploadTo(targetAddr *net.UDPAddr, remote *types.VersionMessage, requ
 	case StatusInvalidBody:
 		return nil, fmt.Errorf("prepare-upload request failed: invalid body")
 	case StatusPinRequiredOrInvalid:
-		return nil, fmt.Errorf("prepare-upload request failed: pin required or invalid")
+		// Try to parse error message from response body
+		var errorResponse struct {
+			Error string `json:"error"`
+		}
+		if len(body) > 0 {
+			if err := sonic.Unmarshal(body, &errorResponse); err == nil && errorResponse.Error != "" {
+				// Return the error message from response
+				if errorResponse.Error == "PIN required" || errorResponse.Error == "Invalid PIN" ||
+					errorResponse.Error == "pin required" || errorResponse.Error == "invalid pin" {
+					// Standardize error message
+					if errorResponse.Error == "pin required" {
+						return nil, fmt.Errorf("PIN required")
+					}
+					if errorResponse.Error == "invalid pin" {
+						return nil, fmt.Errorf("Invalid PIN")
+					}
+					return nil, fmt.Errorf("%s", errorResponse.Error)
+				}
+			}
+		}
+		// Default error message if parsing fails
+		return nil, fmt.Errorf("PIN required / Invalid PIN")
 	case StatusRejected:
 		return nil, fmt.Errorf("prepare-upload request rejected")
 	case StatusBlockedByOtherSession:

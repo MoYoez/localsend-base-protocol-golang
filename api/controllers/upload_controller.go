@@ -47,7 +47,13 @@ func (ctrl *UploadController) HandlePrepareUpload(c *gin.Context) {
 			errorMsg := callbackErr.Error()
 
 			switch errorMsg {
-			case "pin required", "invalid pin":
+			case "PIN required", "Invalid PIN", "pin required", "invalid pin":
+				// Return standardized error message
+				if errorMsg == "pin required" {
+					errorMsg = "PIN required"
+				} else if errorMsg == "invalid pin" {
+					errorMsg = "Invalid PIN"
+				}
 				c.JSON(http.StatusUnauthorized, gin.H{"error": errorMsg})
 				return
 			case "rejected":
