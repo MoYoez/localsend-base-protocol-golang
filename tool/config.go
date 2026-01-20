@@ -3,6 +3,7 @@ package tool
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -37,6 +38,13 @@ func defaultConfig() AppConfig {
 	}
 }
 
+// generateFingerprint generate a 32 characters long random string
+func generateFingerprint() string {
+	uuid := GenerateRandomUUID()
+	// remove hyphen, ensure 32 characters
+	return strings.ReplaceAll(uuid, "-", "")
+}
+
 func LoadConfig(path string) (AppConfig, error) {
 	cfg := defaultConfig()
 	if path == "" {
@@ -45,10 +53,13 @@ func LoadConfig(path string) (AppConfig, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
+			// generate fingerprint
+			cfg.Fingerprint = generateFingerprint()
 			if writeErr := writeDefaultConfig(path, cfg); writeErr != nil {
 				return cfg, fmt.Errorf("config file not found, and failed to generate default config: %v", writeErr)
 			}
-			return cfg, fmt.Errorf("config file not found, default config generated: %s", path)
+			// hello, world!
+			return cfg, nil
 		}
 		return cfg, fmt.Errorf("failed to read config file: %v", err)
 	}
