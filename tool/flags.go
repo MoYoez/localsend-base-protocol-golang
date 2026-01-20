@@ -21,5 +21,6 @@ func SetFlags() Config {
 	flag.StringVar(&cfg.UseConfigPath, "useConfigPath", "", "override config file path")
 	flag.StringVar(&cfg.UseDefaultUploadFolder, "useDefaultUploadFolder", "", "override default upload folder")
 	flag.BoolVar(&cfg.UseLegacyMode, "useLegacyMode", false, "use legacy HTTP mode to scan devices (scan every 30 seconds)")
+	flag.Parse()
 	return cfg
 }
