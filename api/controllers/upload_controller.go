@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/moyoez/localsend-base-protocol-golang/api/models"
+	"github.com/moyoez/localsend-base-protocol-golang/notify"
 	"github.com/moyoez/localsend-base-protocol-golang/tool"
 	"github.com/moyoez/localsend-base-protocol-golang/types"
 )
@@ -80,6 +81,25 @@ func (ctrl *UploadController) HandlePrepareUpload(c *gin.Context) {
 		}
 	}
 
+	// Send upload start notifications for each file
+	if response != nil && response.SessionId != "" {
+		for fileID := range request.Files {
+			fileInfo := request.Files[fileID]
+			fileData := map[string]interface{}{
+				"fileName": fileInfo.FileName,
+				"size":     fileInfo.Size,
+				"fileType": fileInfo.FileType,
+				"sha256":   fileInfo.SHA256,
+			}
+			// Send notification asynchronously to avoid blocking the response
+			go func(sessionId, fileId string, data map[string]interface{}) {
+				if err := notify.SendUploadNotification("upload_start", sessionId, fileId, data); err != nil {
+					tool.DefaultLogger.Debugf("Failed to send upload start notification: %v", err)
+				}
+			}(response.SessionId, fileID, fileData)
+		}
+	}
+
 	c.JSON(http.StatusOK, response)
 }
 
@@ -122,6 +142,22 @@ func (ctrl *UploadController) HandleUpload(c *gin.Context) {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": errorMsg})
 				return
 			}
+		} else {
+			// Upload successful, send upload end notification
+			fileInfo, ok := models.LookupFileInfo(sessionId, fileId)
+			fileData := make(map[string]interface{})
+			if ok {
+				fileData["fileName"] = fileInfo.FileName
+				fileData["size"] = fileInfo.Size
+				fileData["fileType"] = fileInfo.FileType
+				fileData["sha256"] = fileInfo.SHA256
+			}
+			// Send notification asynchronously to avoid blocking the response
+			go func(sessionId, fileId string, data map[string]interface{}) {
+				if err := notify.SendUploadNotification("upload_end", sessionId, fileId, data); err != nil {
+					tool.DefaultLogger.Debugf("Failed to send upload end notification: %v", err)
+				}
+			}(sessionId, fileId, fileData)
 		}
 	}
 
