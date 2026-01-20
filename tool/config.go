@@ -30,7 +30,7 @@ func defaultConfig() AppConfig {
 		Version:     "2.0",
 		DeviceModel: "steamdeck",
 		DeviceType:  "headless",
-		Fingerprint: "1145141919180",
+		Fingerprint: generateFingerprint(),
 		Port:        53317,
 		Protocol:    "https",
 		Download:    false,
