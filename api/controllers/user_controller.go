@@ -2,9 +2,12 @@ package controllers
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -12,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/moyoez/localsend-base-protocol-golang/api/models"
 	"github.com/moyoez/localsend-base-protocol-golang/share"
+	"github.com/moyoez/localsend-base-protocol-golang/tool"
 	"github.com/moyoez/localsend-base-protocol-golang/transfer"
 	"github.com/moyoez/localsend-base-protocol-golang/types"
 )
@@ -37,6 +41,35 @@ type UserUploadRequest struct {
 	SessionId string `json:"sessionId"` // SessionId returned from prepare-upload
 	FileId    string `json:"fileId"`    // File ID
 	Token     string `json:"token"`     // File token
+	FileUrl   string `json:"fileUrl"`   // Optional file URL (supports file:/// protocol)
+}
+
+// UserUploadBatchRequest represents batch upload request
+type UserUploadBatchRequest struct {
+	SessionId string               `json:"sessionId"` // SessionId returned from prepare-upload
+	Files     []UserUploadFileItem `json:"files"`     // Array of files to upload
+}
+
+// UserUploadFileItem represents a single file in batch upload
+type UserUploadFileItem struct {
+	FileId  string `json:"fileId"`  // File ID
+	Token   string `json:"token"`   // File token
+	FileUrl string `json:"fileUrl"` // File URL (supports file:/// protocol)
+}
+
+// UserUploadBatchResult represents the result of a batch upload operation
+type UserUploadBatchResult struct {
+	Total   int                    `json:"total"`   // Total number of files
+	Success int                    `json:"success"` // Number of successful uploads
+	Failed  int                    `json:"failed"`  // Number of failed uploads
+	Results []UserUploadItemResult `json:"results"` // Detailed results for each file
+}
+
+// UserUploadItemResult represents the result of a single file upload
+type UserUploadItemResult struct {
+	FileId  string `json:"fileId"`          // File ID
+	Success bool   `json:"success"`         // Whether upload was successful
+	Error   string `json:"error,omitempty"` // Error message if failed
 }
 
 // UserUploadSession stores user upload session information
@@ -169,18 +202,91 @@ func UserPrepareUpload(c *gin.Context) {
 }
 
 // UserUpload handles actual file upload request
-// POST /api/self/v1/upload?sessionId=xxx&fileId=xxx&token=xxx
-// Request body contains binary file data (complies with LocalSend protocol specification)
-// Receives file data and sessionId/fileId/token, sends file to target device
+// POST /api/self/v1/upload
+// Supports two request formats:
+// 1. Query params (sessionId, fileId, token) + binary file data in body
+// 2. JSON body with sessionId, fileId, token, and fileUrl (supports file:/// protocol)
 func UserUpload(c *gin.Context) {
-	// Get required parameters from query params (complies with LocalSend protocol)
-	sessionId := c.Query("sessionId")
-	fileId := c.Query("fileId")
-	token := c.Query("token")
+	var sessionId, fileId, token string
+	var fileReader io.Reader
+	var fileData []byte
 
-	// Validate required parameters
-	if sessionId == "" || fileId == "" || token == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required query parameters: sessionId, fileId, token"})
+	// Check Content-Type to determine request format
+	contentType := c.GetHeader("Content-Type")
+
+	if strings.Contains(contentType, "application/json") {
+		// JSON request format (supports file:/// protocol)
+		var request UserUploadRequest
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON request: " + err.Error()})
+			return
+		}
+
+		sessionId = request.SessionId
+		fileId = request.FileId
+		token = request.Token
+		fileUrl := request.FileUrl
+
+		// Validate required parameters
+		if sessionId == "" || fileId == "" || token == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required parameters: sessionId, fileId, token"})
+			return
+		}
+
+		// Handle file:/// protocol
+		if fileUrl != "" {
+			parsedUrl, err := url.Parse(fileUrl)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid fileUrl: " + err.Error()})
+				return
+			}
+
+			if parsedUrl.Scheme == "file" {
+				// Extract file path from file:/// URL
+				filePath := parsedUrl.Path
+				tool.DefaultLogger.Infof("Reading file from local path: %s", filePath)
+
+				// Read file from local filesystem
+				data, err := os.ReadFile(filePath)
+				if err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Failed to read file from %s: %v", filePath, err)})
+					return
+				}
+				fileData = data
+				tool.DefaultLogger.Infof("Successfully read %d bytes from %s", len(fileData), filePath)
+			} else {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Only file:// protocol is supported for fileUrl"})
+				return
+			}
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "fileUrl is required in JSON request"})
+			return
+		}
+	} else {
+		// Traditional binary upload format (query params + binary body)
+		sessionId = c.Query("sessionId")
+		fileId = c.Query("fileId")
+		token = c.Query("token")
+
+		// Validate required parameters
+		if sessionId == "" || fileId == "" || token == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required query parameters: sessionId, fileId, token"})
+			return
+		}
+
+		// Read file data from request body (binary data)
+		data, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read file data: " + err.Error()})
+			return
+		}
+		defer c.Request.Body.Close()
+		fileData = data
+	}
+
+	// Validate file data
+	if len(fileData) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File data is empty"})
 		return
 	}
 
@@ -198,18 +304,8 @@ func UserUpload(c *gin.Context) {
 		return
 	}
 
-	// Read file data from request body (binary data)
-	fileData, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read file data: " + err.Error()})
-		return
-	}
-	defer c.Request.Body.Close()
-
-	if len(fileData) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "File data is empty"})
-		return
-	}
+	// Create reader from file data
+	fileReader = bytes.NewReader(fileData)
 
 	// Call LocalSend upload endpoint
 	targetAddr := &net.UDPAddr{
@@ -217,19 +313,185 @@ func UserUpload(c *gin.Context) {
 		Port: sessionInfo.Target.VersionMessage.Port,
 	}
 
-	err = transfer.UploadFile(
+	tool.DefaultLogger.Infof("Uploading file to %s:%d (sessionId=%s, fileId=%s)",
+		targetAddr.IP.String(), targetAddr.Port, sessionId, fileId)
+
+	err := transfer.UploadFile(
 		targetAddr,
 		&sessionInfo.Target.VersionMessage,
 		sessionId,
 		fileId,
 		token,
-		bytes.NewReader(fileData),
+		fileReader,
 	)
 
 	if err != nil {
+		tool.DefaultLogger.Errorf("File upload failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "File upload failed: " + err.Error()})
 		return
 	}
 
+	tool.DefaultLogger.Infof("File uploaded successfully (sessionId=%s, fileId=%s)", sessionId, fileId)
 	c.JSON(http.StatusOK, gin.H{"message": "File uploaded successfully"})
+}
+
+// UserUploadBatch handles batch file upload request
+// POST /api/self/v1/upload-batch
+// Uploads multiple files in a single request using file:/// protocol
+func UserUploadBatch(c *gin.Context) {
+	var request UserUploadBatchRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON request: " + err.Error()})
+		return
+	}
+
+	// Validate required parameters
+	if request.SessionId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required parameter: sessionId"})
+		return
+	}
+
+	if len(request.Files) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No files provided"})
+		return
+	}
+
+	// Get user upload session information
+	sessionInfo := UserUploadSessions.Get(request.SessionId)
+	if sessionInfo.SessionId == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found or expired"})
+		return
+	}
+
+	// Prepare result tracking
+	result := UserUploadBatchResult{
+		Total:   len(request.Files),
+		Success: 0,
+		Failed:  0,
+		Results: make([]UserUploadItemResult, 0, len(request.Files)),
+	}
+
+	// Get target address for upload
+	targetAddr := &net.UDPAddr{
+		IP:   net.ParseIP(sessionInfo.Target.Ipaddress).To4(),
+		Port: sessionInfo.Target.VersionMessage.Port,
+	}
+
+	tool.DefaultLogger.Infof("[UploadBatch] Starting batch upload: sessionId=%s, totalFiles=%d",
+		request.SessionId, len(request.Files))
+
+	// Process each file
+	for _, fileItem := range request.Files {
+		itemResult := UserUploadItemResult{
+			FileId:  fileItem.FileId,
+			Success: false,
+		}
+
+		// Validate file parameters
+		if fileItem.FileId == "" || fileItem.Token == "" || fileItem.FileUrl == "" {
+			itemResult.Error = "Missing required parameters: fileId, token, or fileUrl"
+			result.Results = append(result.Results, itemResult)
+			result.Failed++
+			tool.DefaultLogger.Errorf("[UploadBatch] File %s: missing parameters", fileItem.FileId)
+			continue
+		}
+
+		// Validate token matches
+		expectedToken, ok := sessionInfo.Tokens[fileItem.FileId]
+		if !ok || expectedToken != fileItem.Token {
+			itemResult.Error = "Invalid file ID or token"
+			result.Results = append(result.Results, itemResult)
+			result.Failed++
+			tool.DefaultLogger.Errorf("[UploadBatch] File %s: invalid token", fileItem.FileId)
+			continue
+		}
+
+		// Parse and validate file URL
+		parsedUrl, err := url.Parse(fileItem.FileUrl)
+		if err != nil {
+			itemResult.Error = fmt.Sprintf("Invalid fileUrl: %v", err)
+			result.Results = append(result.Results, itemResult)
+			result.Failed++
+			tool.DefaultLogger.Errorf("[UploadBatch] File %s: invalid URL: %v", fileItem.FileId, err)
+			continue
+		}
+
+		if parsedUrl.Scheme != "file" {
+			itemResult.Error = "Only file:// protocol is supported"
+			result.Results = append(result.Results, itemResult)
+			result.Failed++
+			tool.DefaultLogger.Errorf("[UploadBatch] File %s: unsupported protocol: %s", fileItem.FileId, parsedUrl.Scheme)
+			continue
+		}
+
+		// Extract file path and read file
+		filePath := parsedUrl.Path
+		tool.DefaultLogger.Infof("[UploadBatch] File %s: reading from %s", fileItem.FileId, filePath)
+
+		fileData, err := os.ReadFile(filePath)
+		if err != nil {
+			itemResult.Error = fmt.Sprintf("Failed to read file: %v", err)
+			result.Results = append(result.Results, itemResult)
+			result.Failed++
+			tool.DefaultLogger.Errorf("[UploadBatch] File %s: failed to read file: %v", fileItem.FileId, err)
+			continue
+		}
+
+		if len(fileData) == 0 {
+			itemResult.Error = "File data is empty"
+			result.Results = append(result.Results, itemResult)
+			result.Failed++
+			tool.DefaultLogger.Errorf("[UploadBatch] File %s: file is empty", fileItem.FileId)
+			continue
+		}
+
+		tool.DefaultLogger.Infof("[UploadBatch] File %s: read %d bytes, uploading to %s:%d",
+			fileItem.FileId, len(fileData), targetAddr.IP.String(), targetAddr.Port)
+
+		// Upload file to target device
+		err = transfer.UploadFile(
+			targetAddr,
+			&sessionInfo.Target.VersionMessage,
+			request.SessionId,
+			fileItem.FileId,
+			fileItem.Token,
+			bytes.NewReader(fileData),
+		)
+
+		if err != nil {
+			itemResult.Error = fmt.Sprintf("Upload failed: %v", err)
+			result.Results = append(result.Results, itemResult)
+			result.Failed++
+			tool.DefaultLogger.Errorf("[UploadBatch] File %s: upload failed: %v", fileItem.FileId, err)
+		} else {
+			itemResult.Success = true
+			result.Results = append(result.Results, itemResult)
+			result.Success++
+			tool.DefaultLogger.Infof("[UploadBatch] File %s: uploaded successfully", fileItem.FileId)
+		}
+	}
+
+	tool.DefaultLogger.Infof("[UploadBatch] Batch upload completed: sessionId=%s, success=%d, failed=%d",
+		request.SessionId, result.Success, result.Failed)
+
+	// Return result with appropriate status code
+	if result.Failed == result.Total {
+		// All files failed
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":  "All files failed to upload",
+			"result": result,
+		})
+	} else if result.Failed > 0 {
+		// Some files failed
+		c.JSON(http.StatusMultiStatus, gin.H{
+			"message": "Batch upload completed with some failures",
+			"result":  result,
+		})
+	} else {
+		// All files succeeded
+		c.JSON(http.StatusOK, gin.H{
+			"message": "All files uploaded successfully",
+			"result":  result,
+		})
+	}
 }

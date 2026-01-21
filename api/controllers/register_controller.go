@@ -36,7 +36,7 @@ func (ctrl *RegisterController) HandleRegister(c *gin.Context) {
 		return
 	}
 
-	tool.DefaultLogger.Debugf("Received register request from %s (fingerprint: %s)", incoming.Alias, incoming.Fingerprint)
+	tool.DefaultLogger.Infof("[Register] Received register request from %s (fingerprint: %s)", incoming.Alias, incoming.Fingerprint)
 
 	remoteHost, _, splitErr := net.SplitHostPort(c.ClientIP())
 	if splitErr != nil || remoteHost == "" {
@@ -44,11 +44,13 @@ func (ctrl *RegisterController) HandleRegister(c *gin.Context) {
 	}
 
 	if ctrl.handler != nil {
+		tool.DefaultLogger.Infof("[Register] Processing register callback for device: %s", incoming.Alias)
 		if err := ctrl.handler.OnRegister(incoming); err != nil {
-			tool.DefaultLogger.Errorf("Register callback error: %v", err)
+			tool.DefaultLogger.Errorf("[Register] Register callback error: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 			return
 		}
+		tool.DefaultLogger.Infof("[Register] Successfully registered device: %s", incoming.Alias)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})

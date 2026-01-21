@@ -37,10 +37,12 @@ func (ctrl *UploadController) HandlePrepareUpload(c *gin.Context) {
 		return
 	}
 
-	tool.DefaultLogger.Debugf("Received prepare-upload request from %s (pin: %s)", request.Info.Alias, pin)
+	tool.DefaultLogger.Infof("[PrepareUpload] Received prepare-upload request from %s (pin: %s)", request.Info.Alias, pin)
+	tool.DefaultLogger.Infof("[PrepareUpload] Number of files: %d", len(request.Files))
 
 	var response *types.PrepareUploadResponse
 	if ctrl.handler != nil {
+		tool.DefaultLogger.Infof("[PrepareUpload] Processing prepare-upload callback for device: %s", request.Info.Alias)
 		var callbackErr error
 		response, callbackErr = ctrl.handler.OnPrepareUpload(request, pin)
 		if callbackErr != nil {
@@ -93,11 +95,16 @@ func (ctrl *UploadController) HandlePrepareUpload(c *gin.Context) {
 			}
 			// Send notification asynchronously to avoid blocking the response
 			go func(sessionId, fileId string, data map[string]interface{}) {
+				tool.DefaultLogger.Infof("[Notify] Sending upload_start notification: sessionId=%s, fileId=%s, fileName=%s",
+					sessionId, fileId, data["fileName"])
 				if err := notify.SendUploadNotification("upload_start", sessionId, fileId, data); err != nil {
-					tool.DefaultLogger.Debugf("Failed to send upload start notification: %v", err)
+					tool.DefaultLogger.Errorf("[Notify] Failed to send upload_start notification: %v", err)
+				} else {
+					tool.DefaultLogger.Infof("[Notify] Successfully sent upload_start notification for file: %s", data["fileName"])
 				}
 			}(response.SessionId, fileID, fileData)
 		}
+		tool.DefaultLogger.Infof("[PrepareUpload] Successfully prepared upload session: %s", response.SessionId)
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -124,9 +131,10 @@ func (ctrl *UploadController) HandleUpload(c *gin.Context) {
 	}
 
 	remoteAddr := c.ClientIP()
-	tool.DefaultLogger.Debugf("Received upload request: sessionId=%s, fileId=%s, token=%s, remoteAddr=%s", sessionId, fileId, token, remoteAddr)
+	tool.DefaultLogger.Infof("[Upload] Received upload request: sessionId=%s, fileId=%s, token=%s, remoteAddr=%s", sessionId, fileId, token, remoteAddr)
 
 	if ctrl.handler != nil {
+		tool.DefaultLogger.Infof("[Upload] Processing upload callback for fileId: %s", fileId)
 		if err := ctrl.handler.OnUpload(sessionId, fileId, token, c.Request.Body, remoteAddr); err != nil {
 			tool.DefaultLogger.Errorf("Upload callback error: %v", err)
 			errorMsg := err.Error()
@@ -146,18 +154,25 @@ func (ctrl *UploadController) HandleUpload(c *gin.Context) {
 			// Upload successful, send upload end notification
 			fileInfo, ok := models.LookupFileInfo(sessionId, fileId)
 			fileData := make(map[string]interface{})
+			fileName := "unknown"
 			if ok {
 				fileData["fileName"] = fileInfo.FileName
 				fileData["size"] = fileInfo.Size
 				fileData["fileType"] = fileInfo.FileType
 				fileData["sha256"] = fileInfo.SHA256
+				fileName = fileInfo.FileName
 			}
 			// Send notification asynchronously to avoid blocking the response
-			go func(sessionId, fileId string, data map[string]interface{}) {
+			go func(sessionId, fileId string, data map[string]interface{}, fName string) {
+				tool.DefaultLogger.Infof("[Notify] Sending upload_end notification: sessionId=%s, fileId=%s, fileName=%s",
+					sessionId, fileId, fName)
 				if err := notify.SendUploadNotification("upload_end", sessionId, fileId, data); err != nil {
-					tool.DefaultLogger.Debugf("Failed to send upload end notification: %v", err)
+					tool.DefaultLogger.Errorf("[Notify] Failed to send upload_end notification: %v", err)
+				} else {
+					tool.DefaultLogger.Infof("[Notify] Successfully sent upload_end notification for file: %s", fName)
 				}
-			}(sessionId, fileId, fileData)
+			}(sessionId, fileId, fileData, fileName)
+			tool.DefaultLogger.Infof("[Upload] Successfully uploaded file: %s (sessionId=%s)", fileName, sessionId)
 		}
 	}
 
