@@ -24,8 +24,10 @@ const (
 )
 
 var (
-	multcastAddress = defaultMultcastAddress
-	multcastPort    = defaultMultcastPort
+	multcastAddress       = defaultMultcastAddress
+	multcastPort          = defaultMultcastPort
+	referNetworkInterface string // the specified network interface name
+	listenAllInterfaces   bool   // whether to listen on all network interfaces
 )
 
 // SetMultcastAddress overrides the default multicast address if non-empty.
@@ -44,23 +46,80 @@ func SetMultcastPort(port int) {
 	multcastPort = port
 }
 
-// ListenMulticastUsingUDP listens for multicast UDP broadcasts to discover other devices.
-// Only respond to callbacks if the remote device announce=true and is not the same device.
-// * With Register Callback
-// * With Prepare-upload Callback
-func ListenMulticastUsingUDP(self *types.VersionMessage) {
-	addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", multcastAddress, multcastPort))
-	if err != nil {
-		tool.DefaultLogger.Fatalf("Failed to resolve UDP address: %v", err)
+// SetReferNetworkInterface sets the network interface to use for multicast.
+// If interfaceName is empty, it will use the system default interface.
+// If interfaceName is "*", it will listen on all available interfaces.
+func SetReferNetworkInterface(interfaceName string) {
+	if interfaceName == "*" {
+		listenAllInterfaces = true
+		referNetworkInterface = ""
+	} else {
+		listenAllInterfaces = false
+		referNetworkInterface = interfaceName
 	}
-	c, err := net.ListenMulticastUDP("udp4", nil, addr)
+}
+
+// getNetworkInterfaces returns a list of network interfaces to listen on.
+// If listenAllInterfaces is true, returns all valid interfaces.
+// If referNetworkInterface is set, returns only that interface.
+// Otherwise, returns nil (use system default).
+func getNetworkInterfaces() ([]*net.Interface, error) {
+	if listenAllInterfaces {
+		// gain all network interfaces
+		interfaces, err := net.Interfaces()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get network interfaces: %v", err)
+		}
+
+		var validInterfaces []*net.Interface
+		for i := range interfaces {
+			iface := &interfaces[i]
+			// skip closed interfaces and loopback interfaces
+			if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+				continue
+			}
+			// check if the interface supports multicast
+			if iface.Flags&net.FlagMulticast == 0 {
+				continue
+			}
+			validInterfaces = append(validInterfaces, iface)
+		}
+
+		if len(validInterfaces) == 0 {
+			return nil, fmt.Errorf("no valid network interfaces found")
+		}
+
+		return validInterfaces, nil
+	} else if referNetworkInterface != "" {
+		// get the specified network interface
+		iface, err := net.InterfaceByName(referNetworkInterface)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get network interface %s: %v", referNetworkInterface, err)
+		}
+		return []*net.Interface{iface}, nil
+	}
+
+	// use the system default interface
+	return []*net.Interface{nil}, nil
+}
+
+// listenOnInterface listens for multicast messages on a specific network interface.
+func listenOnInterface(iface *net.Interface, addr *net.UDPAddr, self *types.VersionMessage) {
+	interfaceName := "default"
+	if iface != nil {
+		interfaceName = iface.Name
+	}
+
+	c, err := net.ListenMulticastUDP("udp4", iface, addr)
 	if err != nil {
-		tool.DefaultLogger.Fatalf("Failed to listen on multicast UDP address: %v", err)
+		tool.DefaultLogger.Errorf("Failed to listen on multicast UDP address for interface %s: %v", interfaceName, err)
+		return
 	}
 	defer c.Close()
 	c.SetReadBuffer(256 * 1024)
 	buf := make([]byte, 1024*64)
-	tool.DefaultLogger.Infof("Listening on multicast UDP address: %s", addr.String())
+	tool.DefaultLogger.Infof("Listening on multicast UDP address: %s (interface: %s)", addr.String(), interfaceName)
+
 	for {
 		n, addr, err := c.ReadFrom(buf)
 		if err == nil {
@@ -74,7 +133,7 @@ func ListenMulticastUsingUDP(self *types.VersionMessage) {
 			if !shouldRespond(self, &incoming) {
 				continue
 			}
-			tool.DefaultLogger.Debugf("Received %d bytes from %s\n", n, addr.String())
+			tool.DefaultLogger.Debugf("Received %d bytes from %s on interface %s\n", n, addr.String(), interfaceName)
 			tool.DefaultLogger.Debugf("Data: %s\n", string(buf[:n]))
 			udpAddr, castErr := castToUDPAddr(addr)
 			if castErr != nil {
@@ -93,8 +152,37 @@ func ListenMulticastUsingUDP(self *types.VersionMessage) {
 			}(incoming, udpAddr)
 		} else {
 			// error reading from udp, consider using http.
-			tool.DefaultLogger.Errorf("Error reading from UDP: %v\n", err)
+			tool.DefaultLogger.Errorf("Error reading from UDP on interface %s: %v\n", interfaceName, err)
 		}
+	}
+}
+
+// ListenMulticastUsingUDP listens for multicast UDP broadcasts to discover other devices.
+// Only respond to callbacks if the remote device announce=true and is not the same device.
+// * With Register Callback
+// * With Prepare-upload Callback
+func ListenMulticastUsingUDP(self *types.VersionMessage) {
+	addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", multcastAddress, multcastPort))
+	if err != nil {
+		tool.DefaultLogger.Fatalf("Failed to resolve UDP address: %v", err)
+	}
+
+	interfaces, err := getNetworkInterfaces()
+	if err != nil {
+		tool.DefaultLogger.Fatalf("Failed to get network interfaces: %v", err)
+	}
+
+	if len(interfaces) == 1 {
+		// single interface, just run
+		listenOnInterface(interfaces[0], addr, self)
+	} else {
+		// multiple interfaces, start a goroutine for each interface
+		tool.DefaultLogger.Infof("Listening on %d network interfaces", len(interfaces))
+		for _, iface := range interfaces {
+			go listenOnInterface(iface, addr, self)
+		}
+		// block the main goroutine
+		select {}
 	}
 }
 

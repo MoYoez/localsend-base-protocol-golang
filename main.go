@@ -22,6 +22,9 @@ func main() {
 	if cfg.UseMultcastPort > 0 {
 		boardcast.SetMultcastPort(cfg.UseMultcastPort)
 	}
+	if cfg.UseReferNetworkInterface != "" {
+		boardcast.SetReferNetworkInterface(cfg.UseReferNetworkInterface)
+	}
 	if cfg.UseDefaultUploadFolder != "" {
 		api.DefaultUploadFolder = cfg.UseDefaultUploadFolder
 		api.SetDefaultUploadFolder(cfg.UseDefaultUploadFolder)

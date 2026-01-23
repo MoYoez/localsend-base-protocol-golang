@@ -65,6 +65,7 @@ func SendNotification(notification *Notification, socketPath string) error {
 	conn.SetWriteDeadline(time.Now().Add(UnixSocketTimeout))
 
 	// Send data
+	tool.DefaultLogger.Debugf("Sending notification to Unix socket: %s", tool.BytesToString(payload))
 	_, err = conn.Write(payload)
 	if err != nil {
 		return fmt.Errorf("failed to write to Unix socket: %v", err)
@@ -109,7 +110,7 @@ func SendNotification(notification *Notification, socketPath string) error {
 func SendUploadNotification(eventType, sessionId, fileId string, fileInfo map[string]interface{}) error {
 	notification := &Notification{
 		Type: eventType,
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"sessionId": sessionId,
 			"fileId":    fileId,
 		},
