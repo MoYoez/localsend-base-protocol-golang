@@ -30,6 +30,8 @@ func main() {
 		api.SetDefaultUploadFolder(cfg.UseDefaultUploadFolder)
 	}
 
+	tool.SetProgramConfigStatus(cfg.UsePin, cfg.UseAutoSave)
+
 	// initialize logger
 	tool.InitLogger()
 

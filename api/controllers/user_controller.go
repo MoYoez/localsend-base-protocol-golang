@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,6 +39,12 @@ type UserUploadRequest struct {
 type UserUploadBatchRequest struct {
 	SessionId string               `json:"sessionId"` // SessionId returned from prepare-upload
 	Files     []UserUploadFileItem `json:"files"`     // Array of files to upload
+}
+
+// UserConfirmRecvRequest represents confirm receive request
+type UserConfirmRecvRequest struct {
+	SessionId string `json:"sessionId"`
+	Confirmed bool   `json:"confirmed"`
 }
 
 // UserUploadFileItem represents a single file in batch upload
@@ -89,11 +96,48 @@ func UserScanCurrent(c *gin.Context) {
 	c.JSON(http.StatusOK, tool.FastReturnSuccessWithData(values))
 }
 
+// UserConfirmRecv handles confirm receive request
+// GET /api/self/v1/confirm-recv
+func UserConfirmRecv(c *gin.Context) {
+	sessionId := strings.TrimSpace(c.Query("sessionId"))
+	confirmedRaw := strings.TrimSpace(c.Query("confirmed"))
+	if sessionId == "" {
+		c.JSON(http.StatusBadRequest, tool.FastReturnError("Missing required parameter: sessionId"))
+		return
+	}
+	if confirmedRaw == "" {
+		c.JSON(http.StatusBadRequest, tool.FastReturnError("Missing required parameter: confirmed"))
+		return
+	}
+
+	confirmed, err := strconv.ParseBool(confirmedRaw)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, tool.FastReturnError("Invalid parameter: confirmed"))
+		return
+	}
+
+	confirmCh, ok := models.GetConfirmRecvChannel(sessionId)
+	if !ok {
+		c.JSON(http.StatusNotFound, tool.FastReturnError("Session not found or expired"))
+		return
+	}
+
+	select {
+	case confirmCh <- types.ConfirmResult{Confirmed: confirmed}:
+		models.DeleteConfirmRecvChannel(sessionId)
+		c.JSON(http.StatusOK, tool.FastReturnSuccess())
+	default:
+		c.JSON(http.StatusConflict, tool.FastReturnError("Confirm channel busy"))
+	}
+}
+
 // UserPrepareUpload handles prepare upload request
 // POST /api/self/v1/prepare-upload
 // Receives file metadata, sends prepare upload request to target device, returns sessionId and tokens
 func UserPrepareUpload(c *gin.Context) {
 	var request UserPrepareUploadRequest
+	var pin string
+	pin = c.Query("pin")
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, tool.FastReturnError("Invalid request body: "+err.Error()))
 		return
@@ -166,7 +210,7 @@ func UserPrepareUpload(c *gin.Context) {
 		targetAddr,
 		&targetItem.VersionMessage,
 		prepareRequest,
-		"", // PIN, can be added if needed
+		pin, // PIN, can be added if needed
 	)
 
 	if err != nil {

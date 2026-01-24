@@ -11,6 +11,8 @@ type Config struct {
 	UseDefaultUploadFolder   string
 	UseLegacyMode            bool
 	UseReferNetworkInterface string // fixes when using virtual network interface. e.g. Clash TUN.
+	UsePin                   string
+	UseAutoSave              bool // if false, user require to confirm before recv.
 }
 
 // SetFlags parses CLI flags and returns the override config.
@@ -23,6 +25,9 @@ func SetFlags() Config {
 	flag.StringVar(&cfg.UseDefaultUploadFolder, "useDefaultUploadFolder", "", "override default upload folder")
 	flag.BoolVar(&cfg.UseLegacyMode, "useLegacyMode", false, "use legacy HTTP mode to scan devices (scan every 30 seconds)")
 	flag.StringVar(&cfg.UseReferNetworkInterface, "useReferNetworkInterface", "*", "specify network interface (e.g., 'en0', 'eth0') or '*' for all interfaces")
+	flag.StringVar(&cfg.UsePin, "usePin", "", "specify pin for upload (only for FROM upload request)")
+	flag.BoolVar(&cfg.UseAutoSave, "useAutoSave", true, "if false, user require to confirm before recv (only for FROM upload request)")
+
 	flag.Parse()
 	return cfg
 }

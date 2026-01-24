@@ -20,6 +20,10 @@ type PrepareUploadResponse struct {
 	Files     map[string]string `json:"files"`
 }
 
+type ConfirmResult struct {
+	Confirmed bool `json:"confirmed"`
+}
+
 // used in https://github.com/localsend/protocol/tree/main?tab=readme-ov-file#5-reverse-file-transfer-http-aka-download-api
 type PrepareUploadReverseProxyResp struct {
 	Info      DeviceInfoReverseMode `json:"info"`

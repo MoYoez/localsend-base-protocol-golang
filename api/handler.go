@@ -8,8 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/moyoez/localsend-base-protocol-golang/api/models"
+	"github.com/moyoez/localsend-base-protocol-golang/notify"
 	"github.com/moyoez/localsend-base-protocol-golang/tool"
 	"github.com/moyoez/localsend-base-protocol-golang/types"
 )
@@ -68,10 +70,68 @@ func NewDefaultHandler() *Handler {
 		onPrepareUpload: func(request *types.PrepareUploadRequest, pin string) (*types.PrepareUploadResponse, error) {
 			tool.DefaultLogger.Infof("Received file transfer prepare request: from %s, file count: %d, PIN: %s",
 				request.Info.Alias, len(request.Files), pin)
+
 			askSession := tool.GenerateRandomUUID()
 			response := &types.PrepareUploadResponse{
 				SessionId: askSession,
 				Files:     make(map[string]string),
+			}
+
+			// generated uuid, ready to check before updating files.
+
+			// this is for pin support.
+			pinSetted := tool.GetProgramConfigStatus().Pin
+			switch {
+			case pinSetted != "" && pin == "":
+				return nil, fmt.Errorf("PIN required")
+			case pinSetted != "" && pin != pinSetted:
+				return nil, fmt.Errorf("Invalid PIN")
+			}
+
+			if !tool.GetProgramConfigStatus().AutoSave {
+				// user is required to confirm before recv.
+				confirmCh := make(chan types.ConfirmResult, 1)
+				models.SetConfirmRecvChannel(askSession, confirmCh)
+				defer models.DeleteConfirmRecvChannel(askSession)
+
+				files := make([]map[string]any, 0, len(request.Files))
+				for _, info := range request.Files {
+					files = append(files, map[string]any{
+						"fileName": info.FileName,
+						"size":     info.Size,
+						"fileType": info.FileType,
+						"sha256":   info.SHA256,
+					})
+				}
+
+				notification := &notify.Notification{
+					Type:    "confirm_recv",
+					Title:   "Confirm Receive",
+					Message: fmt.Sprintf("Incoming files from %s", request.Info.Alias),
+					Data: map[string]any{
+						"sessionId": askSession,
+						"from":      request.Info.Alias,
+						"fileCount": len(request.Files),
+						"files":     files,
+					},
+				}
+				// send notify to user.
+				tool.DefaultLogger.Infof("[Notify] Sending confirm_recv notification: %v", notification)
+				tool.DefaultLogger.Debugf("Accpet by using this link: https://localhost:53317/api/self/v1/confirm-recv?sessionId=%s&confirmed=true", askSession)
+				tool.DefaultLogger.Debugf("Reject by using this link: https://localhost:53317/api/self/v1/confirm-recv?sessionId=%s&confirmed=false", askSession)
+				if err := notify.SendNotification(notification, ""); err != nil {
+					tool.DefaultLogger.Errorf("[Notify] Failed to send confirm_recv notification: %v", err)
+				}
+				// timeout is 30
+				confirmTimeout := 30 * time.Second
+				select {
+				case result := <-confirmCh:
+					if !result.Confirmed {
+						return nil, fmt.Errorf("rejected")
+					}
+				case <-time.After(confirmTimeout):
+					return nil, fmt.Errorf("rejected")
+				}
 			}
 
 			if err := tool.JoinSession(askSession); err != nil {

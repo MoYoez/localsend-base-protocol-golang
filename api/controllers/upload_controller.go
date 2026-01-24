@@ -22,7 +22,6 @@ func NewUploadController(handler types.HandlerInterface) *UploadController {
 
 func (ctrl *UploadController) HandlePrepareUpload(c *gin.Context) {
 	pin := c.Query("pin")
-
 	body, err := c.GetRawData()
 	if err != nil {
 		tool.DefaultLogger.Errorf("Failed to read prepare-upload request body: %v", err)
@@ -48,7 +47,6 @@ func (ctrl *UploadController) HandlePrepareUpload(c *gin.Context) {
 		if callbackErr != nil {
 			tool.DefaultLogger.Errorf("[PrepareUpload] Prepare-upload callback error: %v", callbackErr)
 			errorMsg := callbackErr.Error()
-
 			switch errorMsg {
 			case "PIN required", "Invalid PIN", "pin required", "invalid pin":
 				// Return standardized error message

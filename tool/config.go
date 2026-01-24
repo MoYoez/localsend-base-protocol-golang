@@ -25,6 +25,34 @@ type AppConfig struct {
 	Announce    bool   `yaml:"announce"`
 }
 
+type ProgramConfig struct {
+	Pin      string `yaml:"pin"`
+	AutoSave bool   `yaml:"autoSave"`
+}
+
+var ProgramCurrentConfig ProgramConfig
+
+func init() {
+	ProgramCurrentConfig = DefaultProgramConfig()
+}
+
+func SetProgramConfigStatus(pin string, autoSave bool) {
+	ProgramCurrentConfig.Pin = pin
+	ProgramCurrentConfig.AutoSave = autoSave
+}
+
+func GetProgramConfigStatus() ProgramConfig {
+	return ProgramCurrentConfig
+}
+
+// this save to memory , no file provided.
+func DefaultProgramConfig() ProgramConfig {
+	return ProgramConfig{
+		Pin:      "",
+		AutoSave: true,
+	}
+}
+
 func defaultConfig() AppConfig {
 	return AppConfig{
 		Alias:       "localsend-base-protocol-golang", // this may change it later:P

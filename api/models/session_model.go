@@ -1,6 +1,7 @@
 package models
 
 import (
+	"maps"
 	"sync"
 
 	"github.com/moyoez/localsend-base-protocol-golang/types"
@@ -11,15 +12,14 @@ var (
 	DefaultUploadFolder = "uploads"
 	uploadSessions      = map[string]map[string]types.FileInfo{}
 	uploadValidated     = map[string]bool{}
+	confirmRecvChans    = map[string]chan types.ConfirmResult{}
 )
 
 func CacheUploadSession(sessionId string, files map[string]types.FileInfo) {
 	uploadSessionMu.Lock()
 	defer uploadSessionMu.Unlock()
 	copied := make(map[string]types.FileInfo, len(files))
-	for fileId, info := range files {
-		copied[fileId] = info
-	}
+	maps.Copy(copied, files)
 	uploadSessions[sessionId] = copied
 }
 
@@ -64,4 +64,23 @@ func MarkSessionValidated(sessionId string) {
 	uploadSessionMu.Lock()
 	defer uploadSessionMu.Unlock()
 	uploadValidated[sessionId] = true
+}
+
+func SetConfirmRecvChannel(sessionId string, ch chan types.ConfirmResult) {
+	uploadSessionMu.Lock()
+	defer uploadSessionMu.Unlock()
+	confirmRecvChans[sessionId] = ch
+}
+
+func GetConfirmRecvChannel(sessionId string) (chan types.ConfirmResult, bool) {
+	uploadSessionMu.RLock()
+	defer uploadSessionMu.RUnlock()
+	ch, ok := confirmRecvChans[sessionId]
+	return ch, ok
+}
+
+func DeleteConfirmRecvChannel(sessionId string) {
+	uploadSessionMu.Lock()
+	defer uploadSessionMu.Unlock()
+	delete(confirmRecvChans, sessionId)
 }
