@@ -104,6 +104,7 @@ func (ctrl *UploadController) HandlePrepareUpload(c *gin.Context) {
 			}(response.SessionId, fileID, fileData)
 		}
 		tool.DefaultLogger.Infof("[PrepareUpload] Successfully prepared upload session: %s", response.SessionId)
+
 	}
 
 	c.JSON(http.StatusOK, response)

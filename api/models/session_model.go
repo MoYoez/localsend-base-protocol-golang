@@ -4,15 +4,17 @@ import (
 	"maps"
 	"sync"
 
+	ttlworker "github.com/FloatTech/ttl"
+	"github.com/moyoez/localsend-base-protocol-golang/tool"
 	"github.com/moyoez/localsend-base-protocol-golang/types"
 )
 
 var (
 	uploadSessionMu     sync.RWMutex
 	DefaultUploadFolder = "uploads"
-	uploadSessions      = map[string]map[string]types.FileInfo{}
-	uploadValidated     = map[string]bool{}
-	confirmRecvChans    = map[string]chan types.ConfirmResult{}
+	uploadSessions      = ttlworker.NewCache[string, map[string]types.FileInfo](tool.DefaultTTL)
+	uploadValidated     = ttlworker.NewCache[string, bool](tool.DefaultTTL)
+	confirmRecvChans    = ttlworker.NewCache[string, chan types.ConfirmResult](tool.DefaultTTL)
 )
 
 func CacheUploadSession(sessionId string, files map[string]types.FileInfo) {
@@ -20,14 +22,14 @@ func CacheUploadSession(sessionId string, files map[string]types.FileInfo) {
 	defer uploadSessionMu.Unlock()
 	copied := make(map[string]types.FileInfo, len(files))
 	maps.Copy(copied, files)
-	uploadSessions[sessionId] = copied
+	uploadSessions.Set(sessionId, copied)
 }
 
 func LookupFileInfo(sessionId, fileId string) (types.FileInfo, bool) {
 	uploadSessionMu.RLock()
 	defer uploadSessionMu.RUnlock()
-	files, ok := uploadSessions[sessionId]
-	if !ok {
+	files := uploadSessions.Get(sessionId)
+	if files == nil {
 		return types.FileInfo{}, false
 	}
 	info, exists := files[fileId]
@@ -37,50 +39,68 @@ func LookupFileInfo(sessionId, fileId string) (types.FileInfo, bool) {
 func RemoveUploadedFile(sessionId, fileId string) {
 	uploadSessionMu.Lock()
 	defer uploadSessionMu.Unlock()
-	files, ok := uploadSessions[sessionId]
-	if !ok {
+	files := uploadSessions.Get(sessionId)
+	if files == nil {
 		return
 	}
 	delete(files, fileId)
 	if len(files) == 0 {
-		delete(uploadSessions, sessionId)
+		uploadSessions.Delete(sessionId)
+		return
 	}
+	uploadSessions.Set(sessionId, files)
 }
 
 func RemoveUploadSession(sessionId string) {
 	uploadSessionMu.Lock()
 	defer uploadSessionMu.Unlock()
-	delete(uploadSessions, sessionId)
-	delete(uploadValidated, sessionId)
+	uploadSessions.Delete(sessionId)
+	uploadValidated.Delete(sessionId)
+	confirmRecvChans.Delete(sessionId)
 }
 
 func IsSessionValidated(sessionId string) bool {
 	uploadSessionMu.RLock()
 	defer uploadSessionMu.RUnlock()
-	return uploadValidated[sessionId]
+	return uploadValidated.Get(sessionId)
 }
 
 func MarkSessionValidated(sessionId string) {
 	uploadSessionMu.Lock()
 	defer uploadSessionMu.Unlock()
-	uploadValidated[sessionId] = true
+	uploadValidated.Set(sessionId, true)
 }
 
 func SetConfirmRecvChannel(sessionId string, ch chan types.ConfirmResult) {
 	uploadSessionMu.Lock()
 	defer uploadSessionMu.Unlock()
-	confirmRecvChans[sessionId] = ch
+	confirmRecvChans.Set(sessionId, ch)
 }
 
 func GetConfirmRecvChannel(sessionId string) (chan types.ConfirmResult, bool) {
 	uploadSessionMu.RLock()
 	defer uploadSessionMu.RUnlock()
-	ch, ok := confirmRecvChans[sessionId]
-	return ch, ok
+	ch := confirmRecvChans.Get(sessionId)
+	if ch == nil {
+		return nil, false
+	}
+	return ch, true
 }
 
 func DeleteConfirmRecvChannel(sessionId string) {
 	uploadSessionMu.Lock()
 	defer uploadSessionMu.Unlock()
-	delete(confirmRecvChans, sessionId)
+	confirmRecvChans.Delete(sessionId)
+}
+
+func GetUploadSessionFiles(sessionId string) (map[string]types.FileInfo, bool) {
+	uploadSessionMu.RLock()
+	defer uploadSessionMu.RUnlock()
+	files := uploadSessions.Get(sessionId)
+	if files == nil {
+		return nil, false
+	}
+	copied := make(map[string]types.FileInfo, len(files))
+	maps.Copy(copied, files)
+	return copied, true
 }
