@@ -42,6 +42,9 @@ Actually it used for [decky-localsend](https://github.com/moyoez/decky-localsend
 | `-useDefaultUploadFolder`     | string  | (empty) | Specify the default folder for uploads                                                       |
 | `-useLegacyMode`              | bool    | false   | Use legacy HTTP mode to scan devices (scans every 30 seconds)                                |
 | `-useReferNetworkInterface`   | string  | "*"     | Specify the network interface for use (e.g., `"en0"`, `"eth0"`, or `"*"` for all interfaces) |
+| `-usePin`                    | string  | (empty) | Specify a PIN to require for uploads |
+| `-useAutoSave`               | bool    | true    | If false, requires manual confirmation to receive files |
+
 
 > Generally, if you are using a hotspot for the Steam Deck, using -useLegacyMode can help avoid the issue of not being able to scan.
 

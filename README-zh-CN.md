@@ -38,6 +38,9 @@
 | `-useDefaultUploadFolder`      | string   | (空)     | 指定默认上传文件夹                                                                           |
 | `-useLegacyMode`               | Boolean   | false    | 使用旧版 HTTP 模式扫描设备（每 30 秒扫描一次）                                               |
 | `-useReferNetworkInterface`    | string   | "*"      | 指定使用的网络接口（如 `"en0"`、`"eth0"`，或 `"*"` 表示所有接口）                             |
+| `-usePin`                      | string   | (空)     | 指定上传时需要的 PIN
+| `-useAutoSave`                 | Boolean  | true     | 若为 false，则在接收文件时需要手动确认                |
+
 
 #### 小提示
 
