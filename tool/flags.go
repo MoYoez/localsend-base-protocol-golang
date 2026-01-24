@@ -13,6 +13,7 @@ type Config struct {
 	UseReferNetworkInterface string // fixes when using virtual network interface. e.g. Clash TUN.
 	UsePin                   string
 	UseAutoSave              bool // if false, user require to confirm before recv.
+	UseAlias                 string
 }
 
 // SetFlags parses CLI flags and returns the override config.
@@ -27,6 +28,7 @@ func SetFlags() Config {
 	flag.StringVar(&cfg.UseReferNetworkInterface, "useReferNetworkInterface", "*", "specify network interface (e.g., 'en0', 'eth0') or '*' for all interfaces")
 	flag.StringVar(&cfg.UsePin, "usePin", "", "specify pin for upload (only for FROM upload request)")
 	flag.BoolVar(&cfg.UseAutoSave, "useAutoSave", true, "if false, user require to confirm before recv (only for FROM upload request)")
+	flag.StringVar(&cfg.UseAlias, "useAlias", "", "specify alias for the device")
 
 	flag.Parse()
 	return cfg

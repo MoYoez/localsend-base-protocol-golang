@@ -40,7 +40,7 @@
 | `-useReferNetworkInterface`    | string   | "*"      | 指定使用的网络接口（如 `"en0"`、`"eth0"`，或 `"*"` 表示所有接口）                             |
 | `-usePin`                      | string   | (空)     | 指定上传时需要的 PIN
 | `-useAutoSave`                 | Boolean  | true     | 若为 false，则在接收文件时需要手动确认                |
-
+| `-useAlias`                    | string  | (空) | 指定别名以在互联网上显示 |
 
 #### 小提示
 

@@ -29,6 +29,9 @@ func main() {
 		api.DefaultUploadFolder = cfg.UseDefaultUploadFolder
 		api.SetDefaultUploadFolder(cfg.UseDefaultUploadFolder)
 	}
+	if cfg.UseAlias != "" {
+		appCfg.Alias = cfg.UseAlias
+	}
 
 	tool.SetProgramConfigStatus(cfg.UsePin, cfg.UseAutoSave)
 
