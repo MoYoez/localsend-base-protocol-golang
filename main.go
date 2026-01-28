@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/moyoez/localsend-base-protocol-golang/api"
 	"github.com/moyoez/localsend-base-protocol-golang/boardcast"
+	"github.com/moyoez/localsend-base-protocol-golang/notify"
 	"github.com/moyoez/localsend-base-protocol-golang/tool"
 	"github.com/moyoez/localsend-base-protocol-golang/types"
 )
@@ -31,6 +32,9 @@ func main() {
 	}
 	if cfg.UseAlias != "" {
 		appCfg.Alias = cfg.UseAlias
+	}
+	if cfg.SkipNotify {
+		notify.UseNotify = false
 	}
 
 	tool.SetProgramConfigStatus(cfg.UsePin, cfg.UseAutoSave)

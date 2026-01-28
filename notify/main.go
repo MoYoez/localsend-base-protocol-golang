@@ -20,19 +20,23 @@ var (
 	DefaultUnixSocketPath = "/tmp/localsend-notify.sock"
 	// UnixSocketTimeout is the timeout for Unix socket operations
 	UnixSocketTimeout = 5 * time.Second
+	UseNotify         = true
 )
 
 // Notification represents a notification message structure
 type Notification struct {
-	Type       string                 `json:"type,omitempty"`       // Notification type, e.g. "upload_start", "upload_end", etc.
-	Title      string                 `json:"title,omitempty"`      // Notification title
-	Message    string                 `json:"message,omitempty"`    // Notification message/content
-	Data       map[string]interface{} `json:"data,omitempty"`       // Additional data fields
-	IsTextOnly bool                   `json:"isTextOnly,omitempty"` // Indicates if this is plain text content
+	Type       string         `json:"type,omitempty"`       // Notification type, e.g. "upload_start", "upload_end", etc.
+	Title      string         `json:"title,omitempty"`      // Notification title
+	Message    string         `json:"message,omitempty"`    // Notification message/content
+	Data       map[string]any `json:"data,omitempty"`       // Additional data fields
+	IsTextOnly bool           `json:"isTextOnly,omitempty"` // Indicates if this is plain text content
 }
 
 // SendNotification sends notification via Unix Domain Socket
 func SendNotification(notification *Notification, socketPath string) error {
+	if !UseNotify {
+		return nil
+	}
 	if socketPath == "" {
 		socketPath = DefaultUnixSocketPath
 	}

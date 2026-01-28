@@ -41,6 +41,8 @@
 | `-usePin`                      | string   | (空)     | 指定上传时需要的 PIN
 | `-useAutoSave`                 | Boolean  | true     | 若为 false，则在接收文件时需要手动确认                |
 | `-useAlias`                    | string  | (空) | 指定别名以在互联网上显示 |
+| `-useMixedScan`               | bool    | false   | 使用混合模式扫描 (UDP+HTTP)
+| `-skipNotify`                 | bool    | false   | 跳过对 Decky 的 unix 的通信      
 
 #### 小提示
 

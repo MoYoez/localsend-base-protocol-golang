@@ -15,6 +15,7 @@ type Config struct {
 	UseAutoSave              bool // if false, user require to confirm before recv.
 	UseAlias                 string
 	UseMixedScan             bool // if true, use mixed scan mode, both UDP and HTTP.
+	SkipNotify               bool // if true, skip notify mode.
 }
 
 // SetFlags parses CLI flags and returns the override config.
@@ -31,6 +32,7 @@ func SetFlags() Config {
 	flag.BoolVar(&cfg.UseAutoSave, "useAutoSave", true, "if false, user require to confirm before recv (only for FROM upload request)")
 	flag.StringVar(&cfg.UseAlias, "useAlias", "", "specify alias for the device")
 	flag.BoolVar(&cfg.UseMixedScan, "useMixedScan", false, "if true, use mixed scan mode, both UDP and HTTP.")
+	flag.BoolVar(&cfg.SkipNotify, "skipNotify", false, "if true, skip notify mode.")
 	flag.Parse()
 	return cfg
 }

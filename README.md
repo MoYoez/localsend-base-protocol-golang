@@ -45,6 +45,9 @@ Actually it used for [decky-localsend](https://github.com/moyoez/decky-localsend
 | `-usePin`                    | string  | (empty) | Specify a PIN to require for uploads |
 | `-useAutoSave`               | bool    | true    | If false, requires manual confirmation to receive files |
 | `-useAlias`                    | string  | (empty) | Specify a Alias to shown in net. |
+| `-useMixedScan`               | bool    | false   | Use mixed scan mode (both UDP and HTTP for discovery)                                        |
+| `-skipNotify`                 | bool    | false   | Skip notification mode                                                                       |
+
 
 
 > Generally, if you are using a hotspot for the Steam Deck, using -useLegacyMode can help avoid the issue of not being able to scan.
