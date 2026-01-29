@@ -558,7 +558,7 @@ func ListenMulticastUsingHTTP(self *types.VersionMessageHTTP) {
 							return
 						}
 						req.Header.Set("Content-Type", "application/json")
-						client = tool.NewHTTPClient(protocol)
+						client = tool.GetHttpClient()
 						resp, err = client.Do(req)
 						if err != nil {
 							tool.DefaultLogger.Debugf("ListenMulticastUsingHTTP: failed to send request to %s: %v", url, err)
@@ -628,7 +628,7 @@ func sendRegisterRequest(url string, protocol string, payload string) error {
 	tool.DefaultLogger.Debugf("Payload: %s", payload)
 	tool.DefaultLogger.Debugf("Protocol: %s", protocol)
 
-	client := tool.NewHTTPClient(protocol)
+	client := tool.GetHttpClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send register request: %v", err)

@@ -13,7 +13,20 @@ func HandleLocalsendV1InfoGet(c *gin.Context) {
 	selfDevice := models.GetSelfDevice()
 	c.JSON(http.StatusOK, types.V1InfoResponse{
 		Alias:       selfDevice.Alias,
+		Version:     selfDevice.Version, // consider let the remote switch to v2.
 		DeviceModel: selfDevice.DeviceModel,
 		DeviceType:  selfDevice.DeviceType,
+	})
+}
+
+func HandleLocalsendV2InfoGet(c *gin.Context) {
+	selfDevice := models.GetSelfDevice()
+	c.JSON(http.StatusOK, types.V2InfoResponse{
+		Alias:       selfDevice.Alias,
+		Version:     selfDevice.Version,
+		DeviceModel: selfDevice.DeviceModel,
+		DeviceType:  selfDevice.DeviceType,
+		Fingerprint: selfDevice.Fingerprint,
+		Download:    selfDevice.Download, // always false.
 	})
 }

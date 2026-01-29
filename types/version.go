@@ -64,6 +64,16 @@ type CallbackLegacyVersionMessageHTTP struct {
 
 type V1InfoResponse struct {
 	Alias       string `json:"alias"`
+	Version     string `json:"version"`
 	DeviceModel string `json:"deviceModel"`
 	DeviceType  string `json:"deviceType"`
+}
+
+type V2InfoResponse struct {
+	Alias       string `json:"alias"`
+	Version     string `json:"version"`
+	DeviceModel string `json:"deviceModel"`
+	DeviceType  string `json:"deviceType"`
+	Fingerprint string `json:"fingerprint"`
+	Download    bool   `json:"download"`
 }

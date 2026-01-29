@@ -78,6 +78,7 @@ func (s *Server) setupRoutes() *gin.Engine {
 	// Register API endpoints
 	v2 := engine.Group("/api/localsend/v2")
 	{
+		v2.GET("/info", controllers.HandleLocalsendV2InfoGet)
 		v2.POST("/register", registerCtrl.HandleRegister)
 		v2.POST("/prepare-upload", uploadCtrl.HandlePrepareUpload)
 		v2.POST("/upload", uploadCtrl.HandleUpload)
@@ -88,6 +89,7 @@ func (s *Server) setupRoutes() *gin.Engine {
 	{
 		// no register, register use v2 pls.
 		v1.GET("/info", controllers.HandleLocalsendV1InfoGet)
+		// DO NOT use PIN, it will be rejected when no pin provided.
 		v1.POST("/send-request", uploadCtrl.HandlePrepareV1Upload)
 		v1.POST("/send", uploadCtrl.HandleUploadV1Upload)
 		v1.POST("/cancel", cancelCtrl.HandleCancelV1Cancel)

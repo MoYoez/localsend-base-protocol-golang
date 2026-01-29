@@ -107,14 +107,9 @@ func NewDefaultHandler() *Handler {
 				models.SetConfirmRecvChannel(askSession, confirmCh)
 				defer models.DeleteConfirmRecvChannel(askSession)
 
-				files := make([]map[string]any, 0, len(request.Files))
+				files := make([]types.FileInfo, 0, len(request.Files))
 				for _, info := range request.Files {
-					files = append(files, map[string]any{
-						"fileName": info.FileName,
-						"size":     info.Size,
-						"fileType": info.FileType,
-						"sha256":   info.SHA256,
-					})
+					files = append(files, info)
 				}
 
 				notification := &notify.Notification{

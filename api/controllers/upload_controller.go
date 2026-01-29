@@ -86,22 +86,21 @@ func (ctrl *UploadController) HandlePrepareUpload(c *gin.Context) {
 	if response != nil && response.SessionId != "" {
 		for fileID := range request.Files {
 			fileInfo := request.Files[fileID]
-			fileData := map[string]any{
-				"fileName": fileInfo.FileName,
-				"size":     fileInfo.Size,
-				"fileType": fileInfo.FileType,
-				"sha256":   fileInfo.SHA256,
-			}
 			// Send notification asynchronously to avoid blocking the response
-			go func(sessionId, fileId string, data map[string]any) {
+			go func(sessionId, fileId string, fileInfo types.FileInfo) {
 				tool.DefaultLogger.Infof("[Notify] Sending upload_start notification: sessionId=%s, fileId=%s, fileName=%s",
-					sessionId, fileId, data["fileName"])
-				if err := notify.SendUploadNotification("upload_start", sessionId, fileId, data); err != nil {
+					sessionId, fileId, fileInfo.FileName)
+				if err := notify.SendUploadNotification("upload_start", sessionId, fileId, map[string]any{
+					"fileName": fileInfo.FileName,
+					"size":     fileInfo.Size,
+					"fileType": fileInfo.FileType,
+					"sha256":   fileInfo.SHA256,
+				}); err != nil {
 					tool.DefaultLogger.Errorf("[Notify] Failed to send upload_start notification: %v", err)
 				} else {
-					tool.DefaultLogger.Infof("[Notify] Successfully sent upload_start notification for file: %s", data["fileName"])
+					tool.DefaultLogger.Infof("[Notify] Successfully sent upload_start notification for file: %s", fileInfo.FileName)
 				}
-			}(response.SessionId, fileID, fileData)
+			}(response.SessionId, fileID, fileInfo)
 		}
 		tool.DefaultLogger.Infof("[PrepareUpload] Successfully prepared upload session: %s", response.SessionId)
 
@@ -172,19 +171,18 @@ func (ctrl *UploadController) HandlePrepareV1Upload(c *gin.Context) {
 		// Send upload start notifications for each file
 		for fileID := range request.Files {
 			fileInfo := request.Files[fileID]
-			fileData := map[string]any{
-				"fileName": fileInfo.FileName,
-				"size":     fileInfo.Size,
-				"fileType": fileInfo.FileType,
-				"sha256":   fileInfo.SHA256,
-			}
-			go func(sessionId, fileId string, data map[string]any) {
+			go func(sessionId, fileId string, fileInfo types.FileInfo) {
 				tool.DefaultLogger.Infof("[V1 Notify] Sending upload_start notification: sessionId=%s, fileId=%s, fileName=%s",
-					sessionId, fileId, data["fileName"])
-				if err := notify.SendUploadNotification("upload_start", sessionId, fileId, data); err != nil {
+					sessionId, fileId, fileInfo.FileName)
+				if err := notify.SendUploadNotification("upload_start", sessionId, fileId, map[string]any{
+					"fileName": fileInfo.FileName,
+					"size":     fileInfo.Size,
+					"fileType": fileInfo.FileType,
+					"sha256":   fileInfo.SHA256,
+				}); err != nil {
 					tool.DefaultLogger.Errorf("[V1 Notify] Failed to send upload_start notification: %v", err)
 				}
-			}(response.SessionId, fileID, fileData)
+			}(response.SessionId, fileID, fileInfo)
 		}
 		tool.DefaultLogger.Infof("[V1 SendRequest] Successfully prepared session: %s for IP: %s", response.SessionId, remoteAddr)
 	}
@@ -237,23 +235,24 @@ func (ctrl *UploadController) HandleUploadV1Upload(c *gin.Context) {
 		} else {
 			// Upload successful, send upload end notification
 			fileInfo, ok := models.LookupFileInfo(sessionId, fileId)
-			fileData := make(map[string]any)
-			fileName := "unknown"
-			if ok {
-				fileData["fileName"] = fileInfo.FileName
-				fileData["size"] = fileInfo.Size
-				fileData["fileType"] = fileInfo.FileType
-				fileData["sha256"] = fileInfo.SHA256
-				fileName = fileInfo.FileName
+			if !ok {
+				tool.DefaultLogger.Errorf("[V1 Send] File info not found for sessionId=%s, fileId=%s", sessionId, fileId)
+				c.JSON(http.StatusInternalServerError, tool.FastReturnError("File info not found"))
+				return
 			}
-			go func(sid, fid string, data map[string]any, fName string) {
+			go func(sid, fid string, fileInfo types.FileInfo) {
 				tool.DefaultLogger.Infof("[V1 Notify] Sending upload_end notification: sessionId=%s, fileId=%s, fileName=%s",
-					sid, fid, fName)
-				if err := notify.SendUploadNotification("upload_end", sid, fid, data); err != nil {
+					sid, fid, fileInfo.FileName)
+				if err := notify.SendUploadNotification("upload_end", sid, fid, map[string]any{
+					"fileName": fileInfo.FileName,
+					"size":     fileInfo.Size,
+					"fileType": fileInfo.FileType,
+					"sha256":   fileInfo.SHA256,
+				}); err != nil {
 					tool.DefaultLogger.Errorf("[V1 Notify] Failed to send upload_end notification: %v", err)
 				}
-			}(sessionId, fileId, fileData, fileName)
-			tool.DefaultLogger.Infof("[V1 Send] Successfully uploaded file: %s (sessionId=%s)", fileName, sessionId)
+			}(sessionId, fileId, fileInfo)
+			tool.DefaultLogger.Infof("[V1 Send] Successfully uploaded file: %s (sessionId=%s)", fileInfo.FileName, sessionId)
 		}
 	}
 
@@ -282,7 +281,7 @@ func (ctrl *UploadController) HandleUpload(c *gin.Context) {
 
 	remoteAddr := c.ClientIP()
 	tool.DefaultLogger.Infof("[Upload] Received upload request: sessionId=%s, fileId=%s, token=%s, remoteAddr=%s", sessionId, fileId, token, remoteAddr)
-	tool.DefaultLogger.Infof("[Upload] Content-Type: %s", c.GetHeader("Content-Type"))
+	tool.DefaultLogger.Debugf("[Upload] Content-Type: %s", c.GetHeader("Content-Type"))
 	if ctrl.handler != nil {
 		tool.DefaultLogger.Infof("[Upload] Processing upload callback for fileId: %s", fileId)
 		if err := ctrl.handler.OnUpload(sessionId, fileId, token, c.Request.Body, remoteAddr); err != nil {
@@ -303,26 +302,27 @@ func (ctrl *UploadController) HandleUpload(c *gin.Context) {
 		} else {
 			// Upload successful, send upload end notification
 			fileInfo, ok := models.LookupFileInfo(sessionId, fileId)
-			fileData := make(map[string]any)
-			fileName := "unknown"
-			if ok {
-				fileData["fileName"] = fileInfo.FileName
-				fileData["size"] = fileInfo.Size
-				fileData["fileType"] = fileInfo.FileType
-				fileData["sha256"] = fileInfo.SHA256
-				fileName = fileInfo.FileName
+			if !ok {
+				tool.DefaultLogger.Errorf("[Upload] File info not found for sessionId=%s, fileId=%s", sessionId, fileId)
+				c.JSON(http.StatusInternalServerError, tool.FastReturnError("File info not found"))
+				return
 			}
 			// Send notification asynchronously to avoid blocking the response
-			go func(sessionId, fileId string, data map[string]any, fName string) {
+			go func(sessionId, fileId string, data types.FileInfo) {
 				tool.DefaultLogger.Infof("[Notify] Sending upload_end notification: sessionId=%s, fileId=%s, fileName=%s",
-					sessionId, fileId, fName)
-				if err := notify.SendUploadNotification("upload_end", sessionId, fileId, data); err != nil {
+					sessionId, fileId, fileInfo.FileName)
+				if err := notify.SendUploadNotification("upload_end", sessionId, fileId, map[string]any{
+					"fileName": fileInfo.FileName,
+					"size":     fileInfo.Size,
+					"fileType": fileInfo.FileType,
+					"sha256":   fileInfo.SHA256,
+				}); err != nil {
 					tool.DefaultLogger.Errorf("[Notify] Failed to send upload_end notification: %v", err)
 				} else {
-					tool.DefaultLogger.Infof("[Notify] Successfully sent upload_end notification for file: %s", fName)
+					tool.DefaultLogger.Infof("[Notify] Successfully sent upload_end notification for file: %s", fileInfo.FileName)
 				}
-			}(sessionId, fileId, fileData, fileName)
-			tool.DefaultLogger.Infof("[Upload] Successfully uploaded file: %s (sessionId=%s)", fileName, sessionId)
+			}(sessionId, fileId, fileInfo)
+			tool.DefaultLogger.Infof("[Upload] Successfully uploaded file: %s (sessionId=%s)", fileInfo.FileName, sessionId)
 		}
 	}
 

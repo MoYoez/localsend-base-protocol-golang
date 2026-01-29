@@ -7,16 +7,23 @@ import (
 )
 
 var (
-	DefaultTimeout = 30 * time.Second
+	DefaultTimeout       = 30 * time.Second
+	ConnectionHttpClient *http.Client
 )
 
+func init() {
+	ConnectionHttpClient = NewHTTPClient()
+}
+
 // NewHTTPClient creates an HTTP client, skipping self-signed certificate verification in HTTPS mode.
-func NewHTTPClient(protocol string) *http.Client {
+func NewHTTPClient() *http.Client {
 	client := &http.Client{Timeout: DefaultTimeout}
-	if protocol == "https" {
-		client.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
+	client.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	return client
+}
+
+func GetHttpClient() *http.Client {
+	return ConnectionHttpClient
 }

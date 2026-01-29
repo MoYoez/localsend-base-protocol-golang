@@ -78,7 +78,7 @@ type UserUploadSession struct {
 
 // UserUploadSessions stores user upload sessions using TTL cache (default 30 minutes expiration)
 var (
-	UserUploadSessionTTL = 30 * time.Minute
+	UserUploadSessionTTL = 60 * time.Minute
 	UserUploadSessions   = ttlworker.NewCache[string, UserUploadSession](UserUploadSessionTTL)
 )
 
@@ -250,9 +250,9 @@ func UserPrepareUpload(c *gin.Context) {
 	UserUploadSessions.Set(prepareResponse.SessionId, sessionInfo)
 
 	// Return result
-	c.JSON(http.StatusOK, tool.FastReturnSuccessWithData(map[string]any{
-		"sessionId": prepareResponse.SessionId,
-		"files":     prepareResponse.Files,
+	c.JSON(http.StatusOK, tool.FastReturnSuccessWithData(types.PrepareUploadResponse{
+		SessionId: prepareResponse.SessionId,
+		Files:     prepareResponse.Files,
 	}))
 }
 
@@ -299,7 +299,7 @@ func UserUpload(c *gin.Context) {
 			if parsedUrl.Scheme == "file" {
 				// Extract file path from file:/// URL
 				filePath := parsedUrl.Path
-				tool.DefaultLogger.Infof("Reading file from local path: %s", filePath)
+				tool.DefaultLogger.Debugf("Reading file from local path: %s", filePath)
 
 				// Read file from local filesystem
 				data, err := os.ReadFile(filePath)

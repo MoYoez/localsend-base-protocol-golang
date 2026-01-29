@@ -30,7 +30,7 @@ func CancelSession(targetAddr *net.UDPAddr, remote *types.VersionMessage, sessio
 		return fmt.Errorf("failed to create cancel request: %v", err)
 	}
 
-	client := tool.NewHTTPClient(remote.Protocol)
+	client := tool.GetHttpClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send cancel request: %v", err)

@@ -35,7 +35,7 @@ func UploadFile(targetAddr *net.UDPAddr, remote *types.VersionMessage, sessionId
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
 
-	client := tool.NewHTTPClient(remote.Protocol)
+	client := tool.GetHttpClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send upload request: %v", err)

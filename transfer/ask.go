@@ -47,7 +47,7 @@ func ReadyToUploadTo(targetAddr *net.UDPAddr, remote *types.VersionMessage, requ
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := tool.NewHTTPClient(remote.Protocol)
+	client := tool.GetHttpClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send prepare-upload request: %v", err)
