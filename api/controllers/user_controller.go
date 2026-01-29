@@ -25,8 +25,10 @@ import (
 
 // UserPrepareUploadRequest represents the prepare upload request
 type UserPrepareUploadRequest struct {
-	TargetTo string                     `json:"targetTo"` // Target device identifier
-	Files    map[string]types.FileInput `json:"files"`    // File metadata map, key is fileId
+	TargetTo        string                     `json:"targetTo"`                  // Target device identifier
+	Files           map[string]types.FileInput `json:"files,omitempty"`           // File metadata map, key is fileId (used when useFolderUpload is false)
+	UseFolderUpload bool                       `json:"useFolderUpload,omitempty"` // If true, prepare upload for all files from FolderPath
+	FolderPath      string                     `json:"folderPath,omitempty"`      // Folder path to upload (when useFolderUpload is true)
 }
 
 // UserUploadRequest represents the actual upload request
@@ -39,8 +41,10 @@ type UserUploadRequest struct {
 
 // UserUploadBatchRequest represents batch upload request
 type UserUploadBatchRequest struct {
-	SessionId string               `json:"sessionId"` // SessionId returned from prepare-upload
-	Files     []UserUploadFileItem `json:"files"`     // Array of files to upload
+	SessionId       string               `json:"sessionId"`                 // SessionId returned from prepare-upload
+	Files           []UserUploadFileItem `json:"files,omitempty"`           // Array of files to upload (used when useFolderUpload is false)
+	UseFolderUpload bool                 `json:"useFolderUpload,omitempty"` // If true, upload all files from FolderPath
+	FolderPath      string               `json:"folderPath,omitempty"`      // Folder path to upload (when useFolderUpload is true)
 }
 
 // UserConfirmRecvRequest represents confirm receive request
@@ -216,18 +220,46 @@ func UserPrepareUpload(c *gin.Context) {
 		return
 	}
 
+	// Handle folder upload mode
+	if request.UseFolderUpload {
+		if request.FolderPath == "" {
+			c.JSON(http.StatusBadRequest, tool.FastReturnError("folderPath is required when useFolderUpload is true"))
+			return
+		}
+
+		tool.DefaultLogger.Infof("[PrepareUpload] Processing folder upload: %s", request.FolderPath)
+
+		// Process the folder and get all files with proper naming
+		fileInputMap, _, err := tool.ProcessFolderForUpload(request.FolderPath, false)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("Failed to process folder: %v", err)))
+			return
+		}
+
+		// Convert to the Files map format
+		request.Files = make(map[string]types.FileInput, len(fileInputMap))
+		for fileId, fileInput := range fileInputMap {
+			request.Files[fileId] = *fileInput
+		}
+
+		tool.DefaultLogger.Infof("[PrepareUpload] Prepared %d files from folder for upload", len(request.Files))
+	}
+
 	// Process each file input and auto-fill information from fileUrl if provided
 	tool.DefaultLogger.Infof("Processing %d files for prepare-upload", len(request.Files))
 	for fileID, fileInput := range request.Files {
 		// Process file input (auto-fill from fileUrl if provided)
-		if err := tool.ProcessFileInput(&fileInput); err != nil {
-			c.JSON(http.StatusBadRequest, tool.FastReturnErrorWithData(fmt.Sprintf("Failed to process file %s: %v", fileID, err), map[string]any{
-				"fileId": fileID,
-			}))
-			return
+		// Skip processing if useFolderUpload is true (files are already processed)
+		if !request.UseFolderUpload {
+			if err := tool.ProcessFileInput(&fileInput); err != nil {
+				c.JSON(http.StatusBadRequest, tool.FastReturnErrorWithData(fmt.Sprintf("Failed to process file %s: %v", fileID, err), map[string]any{
+					"fileId": fileID,
+				}))
+				return
+			}
+			// Update the map with processed file input
+			request.Files[fileID] = fileInput
 		}
-		// Update the map with processed file input
-		request.Files[fileID] = fileInput
 		tool.DefaultLogger.Infof("File %s: %s (%d bytes, %s)", fileID, fileInput.FileName, fileInput.Size, fileInput.FileType)
 	}
 
@@ -486,6 +518,50 @@ func UserUploadBatch(c *gin.Context) {
 	if request.SessionId == "" {
 		c.JSON(http.StatusBadRequest, tool.FastReturnError("Missing required parameter: sessionId"))
 		return
+	}
+
+	// Handle folder upload mode
+	if request.UseFolderUpload {
+		if request.FolderPath == "" {
+			c.JSON(http.StatusBadRequest, tool.FastReturnError("folderPath is required when useFolderUpload is true"))
+			return
+		}
+
+		tool.DefaultLogger.Infof("[UploadBatch] Processing folder upload: %s", request.FolderPath)
+
+		// Process the folder and get all files
+		_, fileIdToPathMap, err := tool.ProcessFolderForUpload(request.FolderPath, false)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("Failed to process folder: %v", err)))
+			return
+		}
+
+		// Build Files array from the folder contents
+		request.Files = make([]UserUploadFileItem, 0, len(fileIdToPathMap))
+		
+		// Get user upload session information to get tokens
+		sessionInfo := UserUploadSessions.Get(request.SessionId)
+		if sessionInfo.SessionId == "" {
+			c.JSON(http.StatusNotFound, tool.FastReturnError("Session not found or expired"))
+			return
+		}
+
+		for fileId, filePath := range fileIdToPathMap {
+			// Get token for this file from session
+			token, ok := sessionInfo.Tokens[fileId]
+			if !ok {
+				tool.DefaultLogger.Warnf("[UploadBatch] No token found for file %s, skipping", fileId)
+				continue
+			}
+
+			request.Files = append(request.Files, UserUploadFileItem{
+				FileId:  fileId,
+				Token:   token,
+				FileUrl: "file://" + filePath,
+			})
+		}
+
+		tool.DefaultLogger.Infof("[UploadBatch] Prepared %d files from folder for upload", len(request.Files))
 	}
 
 	if len(request.Files) == 0 {
