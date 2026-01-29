@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -220,6 +221,15 @@ func UserPrepareUpload(c *gin.Context) {
 		return
 	}
 
+	// Initialize Files map if nil
+	if request.Files == nil {
+		request.Files = make(map[string]types.FileInput)
+	}
+
+	// Store additional files separately if any were provided
+	additionalFiles := make(map[string]types.FileInput)
+	maps.Copy(additionalFiles, request.Files)
+
 	// Handle folder upload mode
 	if request.UseFolderUpload {
 		if request.FolderPath == "" {
@@ -236,21 +246,32 @@ func UserPrepareUpload(c *gin.Context) {
 			return
 		}
 
-		// Convert to the Files map format
-		request.Files = make(map[string]types.FileInput, len(fileInputMap))
+		// Start with folder files
+		request.Files = make(map[string]types.FileInput, len(fileInputMap)+len(additionalFiles))
 		for fileId, fileInput := range fileInputMap {
 			request.Files[fileId] = *fileInput
 		}
 
-		tool.DefaultLogger.Infof("[PrepareUpload] Prepared %d files from folder for upload", len(request.Files))
+		tool.DefaultLogger.Infof("[PrepareUpload] Prepared %d files from folder", len(fileInputMap))
+
+		// Merge additional files with folder files
+		if len(additionalFiles) > 0 {
+			tool.DefaultLogger.Infof("[PrepareUpload] Merging %d additional files with folder files", len(additionalFiles))
+			for fileID, fileInput := range additionalFiles {
+				request.Files[fileID] = fileInput
+			}
+		}
 	}
 
 	// Process each file input and auto-fill information from fileUrl if provided
-	tool.DefaultLogger.Infof("Processing %d files for prepare-upload", len(request.Files))
+	tool.DefaultLogger.Infof("Processing %d total files for prepare-upload", len(request.Files))
 	for fileID, fileInput := range request.Files {
-		// Process file input (auto-fill from fileUrl if provided)
-		// Skip processing if useFolderUpload is true (files are already processed)
-		if !request.UseFolderUpload {
+		// Only process files that are in additionalFiles (manually provided files)
+		// Files from folder processing are already complete
+		_, isAdditionalFile := additionalFiles[fileID]
+		needsProcessing := !request.UseFolderUpload || isAdditionalFile
+
+		if needsProcessing {
 			if err := tool.ProcessFileInput(&fileInput); err != nil {
 				c.JSON(http.StatusBadRequest, tool.FastReturnErrorWithData(fmt.Sprintf("Failed to process file %s: %v", fileID, err), map[string]any{
 					"fileId": fileID,
@@ -520,6 +541,10 @@ func UserUploadBatch(c *gin.Context) {
 		return
 	}
 
+	// Store additional files if any were provided
+	additionalFiles := make([]UserUploadFileItem, len(request.Files))
+	copy(additionalFiles, request.Files)
+
 	// Handle folder upload mode
 	if request.UseFolderUpload {
 		if request.FolderPath == "" {
@@ -536,15 +561,15 @@ func UserUploadBatch(c *gin.Context) {
 			return
 		}
 
-		// Build Files array from the folder contents
-		request.Files = make([]UserUploadFileItem, 0, len(fileIdToPathMap))
-		
 		// Get user upload session information to get tokens
 		sessionInfo := UserUploadSessions.Get(request.SessionId)
 		if sessionInfo.SessionId == "" {
 			c.JSON(http.StatusNotFound, tool.FastReturnError("Session not found or expired"))
 			return
 		}
+
+		// Build Files array from the folder contents
+		request.Files = make([]UserUploadFileItem, 0, len(fileIdToPathMap)+len(additionalFiles))
 
 		for fileId, filePath := range fileIdToPathMap {
 			// Get token for this file from session
@@ -561,7 +586,13 @@ func UserUploadBatch(c *gin.Context) {
 			})
 		}
 
-		tool.DefaultLogger.Infof("[UploadBatch] Prepared %d files from folder for upload", len(request.Files))
+		tool.DefaultLogger.Infof("[UploadBatch] Prepared %d files from folder", len(request.Files))
+
+		// Merge additional files with folder files
+		if len(additionalFiles) > 0 {
+			tool.DefaultLogger.Infof("[UploadBatch] Merging %d additional files with folder files", len(additionalFiles))
+			request.Files = append(request.Files, additionalFiles...)
+		}
 	}
 
 	if len(request.Files) == 0 {
