@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/moyoez/localsend-base-protocol-golang/api/models"
 	"github.com/moyoez/localsend-base-protocol-golang/boardcast"
 	"github.com/moyoez/localsend-base-protocol-golang/tool"
 	"github.com/moyoez/localsend-base-protocol-golang/types"
@@ -22,6 +23,8 @@ func NewRegisterController(handler types.HandlerInterface) *RegisterController {
 }
 
 func (ctrl *RegisterController) HandleRegister(c *gin.Context) {
+	// get self info.
+	self := models.GetSelfDevice()
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		tool.DefaultLogger.Errorf("Failed to read register request body: %v", err)
@@ -60,5 +63,13 @@ func (ctrl *RegisterController) HandleRegister(c *gin.Context) {
 		tool.DefaultLogger.Infof("[Register] Successfully registered device: %s", incoming.Alias)
 	}
 
-	c.JSON(http.StatusOK, tool.FastReturnSuccess())
+	// call back register info
+	c.JSON(http.StatusOK, types.CallbackVersionMessageHTTP{
+		Alias:       self.Alias,
+		Version:     self.Version,
+		DeviceModel: self.DeviceModel,
+		DeviceType:  self.DeviceType,
+		Fingerprint: self.Fingerprint,
+		Download:    self.Download,
+	})
 }

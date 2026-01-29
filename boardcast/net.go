@@ -524,13 +524,13 @@ func ListenMulticastUsingHTTP(self *types.VersionMessageHTTP) {
 			TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
 			MaxIdleConns:        50,
 			MaxIdleConnsPerHost: 5,
-			IdleConnTimeout:     30 * time.Second,
+			IdleConnTimeout:     10 * time.Second,
 			DisableKeepAlives:   false,
 		},
 	}
 
-	// Scan loop: every 30 seconds
-	ticker := time.NewTicker(30 * time.Second)
+	// Scan loop: every 20 seconds
+	ticker := time.NewTicker(20 * time.Second)
 	defer ticker.Stop()
 
 	// Perform initial scan immediately
@@ -643,7 +643,7 @@ func ListenMulticastUsingHTTP(self *types.VersionMessageHTTP) {
 							DeviceModel: remote.DeviceModel,
 							DeviceType:  remote.DeviceType,
 							Fingerprint: remote.Fingerprint,
-							Port:        defaultMultcastPort,
+							Port:        multcastPort,
 							Protocol:    globalProtocol,
 							Download:    remote.Download,
 							Announce:    true,

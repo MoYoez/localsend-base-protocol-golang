@@ -48,8 +48,8 @@ type CallbackVersionMessageHTTP struct {
 	DeviceModel string `json:"deviceModel"`
 	DeviceType  string `json:"deviceType"`
 	Fingerprint string `json:"fingerprint"`
-	Port        int    `json:"port"`
-	Protocol    string `json:"protocol"`
+	Port        int    `json:"port,omitempty"`
+	Protocol    string `json:"protocol,omitempty"`
 	Download    bool   `json:"download"`
 }
 
