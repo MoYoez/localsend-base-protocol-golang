@@ -82,6 +82,14 @@ var (
 	UserUploadSessions   = ttlworker.NewCache[string, UserUploadSession](UserUploadSessionTTL)
 )
 
+// UserGetNetworkInfo returns local network interface information with IP addresses and segment numbers.
+// GET /api/self/v1/get-network-info
+// Returns: [{ "interface_name": "en0", "ip_address": "192.168.3.12", "number": "#12", "number_int": 12 }, ...]
+func UserGetNetworkInfo(c *gin.Context) {
+	infos := share.GetSelfNetworkInfos()
+	c.JSON(http.StatusOK, tool.FastReturnSuccessWithData(infos))
+}
+
 func UserScanCurrent(c *gin.Context) {
 	keys := share.ListUserScanCurrent()
 	// get key and values.

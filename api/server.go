@@ -94,6 +94,7 @@ func (s *Server) setupRoutes() *gin.Engine {
 	}
 	self := engine.Group("/api/self/v1", middlewares.OnlyAllowLocal)
 	{
+		self.GET("/get-network-info", controllers.UserGetNetworkInfo) // Get local network info with IP and segment number
 		self.GET("/scan-current", controllers.UserScanCurrent)
 		self.POST("/prepare-upload", controllers.UserPrepareUpload) // Prepare upload endpoint
 		self.POST("/upload", controllers.UserUpload)                // Actual upload endpoint
