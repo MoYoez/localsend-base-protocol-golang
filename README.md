@@ -71,6 +71,21 @@ go build -o localsend-server
 ./localsend-server
 ```
 
+### Performance Testing
+
+Benchmarks are in `api/perf_test.go` and use `httptest` to exercise the API handlers.
+
+```bash
+# Prepare-upload benchmark (JSON parse + session setup)
+go test ./api -run '^$' -bench BenchmarkPrepareUpload -benchmem -benchtime=3s
+
+# Upload benchmark (disk write + hashing)
+go test ./api -run '^$' -bench BenchmarkUpload -benchmem -benchtime=3s
+
+# Override upload payload size (bytes)
+BENCH_UPLOAD_SIZE=10485760 go test ./api -run '^$' -bench BenchmarkUpload -benchmem -benchtime=3s
+```
+
 ### Configuration
 
 The server can be configured through command-line flags or configuration files. See the code for available options.

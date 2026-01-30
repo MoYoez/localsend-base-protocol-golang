@@ -69,6 +69,21 @@ go build -o localsend-server
 ./localsend-server
 ```
 
+## 性能测试
+
+基准测试位于 `api/perf_test.go`，使用 `httptest` 直接压测 API 处理器。
+
+```bash
+# prepare-upload 基准（JSON 解析 + 会话准备）
+go test ./api -run '^$' -bench BenchmarkPrepareUpload -benchmem -benchtime=3s
+
+# upload 基准（磁盘写入 + 哈希）
+go test ./api -run '^$' -bench BenchmarkUpload -benchmem -benchtime=3s
+
+# 覆盖上传负载大小（单位：bytes）
+BENCH_UPLOAD_SIZE=10485760 go test ./api -run '^$' -bench BenchmarkUpload -benchmem -benchtime=3s
+```
+
 ## 配置
 
 服务器可以通过命令行参数或配置文件进行配置。请查看代码了解可用选项。
