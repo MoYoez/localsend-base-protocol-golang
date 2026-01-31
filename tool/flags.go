@@ -22,7 +22,7 @@ type Config struct {
 // SetFlags parses CLI flags and returns the override config.
 func SetFlags() Config {
 	var cfg Config
-	flag.StringVar(&cfg.Log, "log", "", "log mode: dev|prod")
+	flag.StringVar(&cfg.Log, "log", "", "log mode: dev|prod|none")
 	flag.StringVar(&cfg.UseMultcastAddress, "useMultcastAddress", "", "override multicast address")
 	flag.IntVar(&cfg.UseMultcastPort, "useMultcastPort", 0, "override multicast port")
 	flag.StringVar(&cfg.UseConfigPath, "useConfigPath", "", "override config file path")

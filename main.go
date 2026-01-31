@@ -67,6 +67,8 @@ func main() {
 			tool.DefaultLogger.SetLevel(log.DebugLevel)
 		case "prod":
 			tool.DefaultLogger.SetLevel(log.InfoLevel)
+		case "none":
+			tool.DefaultLogger.SetLevel(log.FatalLevel)
 		default:
 			tool.DefaultLogger.Warnf("Unknown log mode %q, using debug level", cfg.Log)
 			tool.DefaultLogger.SetLevel(log.DebugLevel)

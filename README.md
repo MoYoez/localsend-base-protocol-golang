@@ -35,7 +35,7 @@ Actually it used for [decky-localsend](https://github.com/moyoez/decky-localsend
 
 | Flag                          | Type    | Default | Description                                                                                  |
 |-------------------------------|---------|---------|----------------------------------------------------------------------------------------------|
-| `-log`                        | string  | (empty) | Log mode: `dev` or `prod`                                                                    |
+| `-log`                        | string  | (empty) | Log mode: `dev` or `prod` or `none`                                                               |
 | `-useMultcastAddress`         | string  | (empty) | Override the default multicast address                                                       |
 | `-useMultcastPort`            | int     | 0       | Override the default multicast port                                                          |
 | `-useConfigPath`              | string  | (empty) | Specify an alternative config file path                                                      |
@@ -52,10 +52,11 @@ Actually it used for [decky-localsend](https://github.com/moyoez/decky-localsend
 
 > Most of cases, mixed mode works well for most cases, if you prefer to reduce the power cost for your machine, switching to (Normal Mode - UDP Detected.) ,it will not make scan to the whole net.
 
+> Sometimes Application cannot scan other localsend if the online too long time, **consider trigger "scan" on other localsend**.
+
 ### TODO
 
-1. **Bug fixes and performance improvements** - Address potential bugs and optimize performance
-2. (maybe) Website Support, but decky-send make it, so i guess I dont make website for this, getting API for your local machine accessing it not a good choice.
+1. (maybe) Website Support, but decky-send make it, so i guess I dont make website for this, getting API for your local machine accessing it not a good choice.
 
 ### Known BUGS
 
