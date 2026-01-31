@@ -1,4 +1,4 @@
-# Localsend-base-protocol-golang
+# Localsend-Go
 
 **语言:** [English](../README.md) | 简体中文
 

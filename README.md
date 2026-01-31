@@ -1,6 +1,6 @@
 <div align="center">
 
-# Localsend-base-protocol-golang
+# Localsend-Go
 
 **Language / 语言:** English | [简体中文](README-zh-CN.md)
 
