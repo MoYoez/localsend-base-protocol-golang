@@ -16,7 +16,7 @@ var (
 
 // FavoriteDeviceEntry represents a favorite device with only fingerprint and alias
 type FavoriteDeviceEntry struct {
-	Fingerprint string `yaml:"fingerprint" json:"fingerprint"`
+	Fingerprint string `yaml:"favorite_fingerprint" json:"favorite_fingerprint"`
 	Alias       string `yaml:"favorite_alias" json:"favorite_alias"`
 }
 
