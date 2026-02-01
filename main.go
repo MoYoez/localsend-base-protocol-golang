@@ -35,6 +35,8 @@ func main() {
 	}
 	if !cfg.UseHttps {
 		appCfg.Protocol = "http"
+	} else {
+		appCfg.Protocol = "https"
 	}
 
 	if cfg.SkipNotify {
