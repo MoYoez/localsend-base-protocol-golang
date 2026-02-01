@@ -3,6 +3,7 @@ package controllers
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -28,10 +29,13 @@ import (
 
 // UserPrepareUploadRequest represents the prepare upload request
 type UserPrepareUploadRequest struct {
-	TargetTo        string                     `json:"targetTo"`                  // Target device identifier
-	Files           map[string]types.FileInput `json:"files,omitempty"`           // File metadata map, key is fileId (used when useFolderUpload is false)
-	UseFolderUpload bool                       `json:"useFolderUpload,omitempty"` // If true, prepare upload for all files from FolderPath
-	FolderPath      string                     `json:"folderPath,omitempty"`      // Folder path to upload (when useFolderUpload is true)
+	TargetTo              string                     `json:"targetTo"`                        // Target device identifier
+	Files                 map[string]types.FileInput `json:"files,omitempty"`                 // File metadata map, key is fileId (used when useFolderUpload is false)
+	UseFolderUpload       bool                       `json:"useFolderUpload,omitempty"`       // If true, prepare upload for all files from FolderPath
+	FolderPath            string                     `json:"folderPath,omitempty"`            // Folder path to upload (when useFolderUpload is true)
+	UseFastSender         bool                       `json:"useFastSender,omitempty"`         // If true, refer to this,ignore device list check.
+	UseFastSenderIPSuffex string                     `json:"useFastSenderIPSuffex,omitempty"` // If true, refer to this,ignore device list check.
+	UseFastSenderIp       string                     `json:"useFastSenderIp,omitempty"`       // If true, refer to this,ignore device list check.
 }
 
 // UserUploadRequest represents the actual upload request
@@ -161,6 +165,27 @@ func UserGetNetworkInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, tool.FastReturnSuccessWithData(infos))
 }
 
+// resolveFastSenderIP resolves the target IP from either a full IP address or an IP suffix.
+// Priority: fullIP > ipSuffix
+// Returns the resolved IP address or an error.
+func resolveFastSenderIP(fullIP, ipSuffix string) (string, error) {
+	// If full IP is provided, use it directly
+	if fullIP != "" {
+		// Validate it's a valid IP
+		if ip := net.ParseIP(fullIP); ip != nil {
+			return fullIP, nil
+		}
+		return "", errors.New("invalid IP address format")
+	}
+
+	// If IP suffix is provided, resolve it
+	if ipSuffix != "" {
+		return tool.GetIPFromSuffix(ipSuffix)
+	}
+
+	return "", errors.New("either useFastSenderIp or useFastSenderIPSuffex must be provided when useFastSender is true")
+}
+
 func UserScanCurrent(c *gin.Context) {
 	keys := share.ListUserScanCurrent()
 	// get key and values.
@@ -245,11 +270,58 @@ func UserPrepareUpload(c *gin.Context) {
 		return
 	}
 
-	// Validate target device exists
-	targetItem, ok := share.GetUserScanCurrent(request.TargetTo)
-	if !ok {
-		c.JSON(http.StatusNotFound, tool.FastReturnError("Target device not found"))
-		return
+	var targetItem share.UserScanCurrentItem
+	var ok bool
+
+	// Fast sender mode: skip device list check, directly fetch device info
+	if request.UseFastSender {
+		targetIP, err := resolveFastSenderIP(request.UseFastSenderIp, request.UseFastSenderIPSuffex)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, tool.FastReturnError("Failed to resolve target IP: "+err.Error()))
+			return
+		}
+
+		// Default port for LocalSend
+		defaultPort := 53317
+
+		tool.DefaultLogger.Infof("[FastSender] Fetching device info from %s:%d", targetIP, defaultPort)
+
+		// Fetch device info from the target
+		deviceInfo, protocol, err := transfer.FetchDeviceInfo(targetIP, defaultPort)
+		if err != nil {
+			c.JSON(http.StatusNotFound, tool.FastReturnError("Failed to fetch device info: "+err.Error()))
+			return
+		}
+
+		// Construct UserScanCurrentItem from the fetched info
+		targetItem = share.UserScanCurrentItem{
+			Ipaddress: targetIP,
+			VersionMessage: types.VersionMessage{
+				Alias:       deviceInfo.Alias,
+				Version:     deviceInfo.Version,
+				DeviceModel: deviceInfo.DeviceModel,
+				DeviceType:  deviceInfo.DeviceType,
+				Fingerprint: deviceInfo.Fingerprint,
+				Port:        defaultPort,
+				Protocol:    protocol,
+				Download:    deviceInfo.Download,
+				Announce:    true,
+			},
+		}
+
+		tool.DefaultLogger.Infof("[FastSender] Successfully fetched device info: %s (fingerprint: %s) at %s",
+			deviceInfo.Alias, deviceInfo.Fingerprint, targetIP)
+
+		// Optionally cache this device info for future use
+		share.SetUserScanCurrent(deviceInfo.Fingerprint, targetItem)
+		ok = true
+	} else {
+		// Normal mode: validate target device exists in scan list
+		targetItem, ok = share.GetUserScanCurrent(request.TargetTo)
+		if !ok {
+			c.JSON(http.StatusNotFound, tool.FastReturnError("Target device not found"))
+			return
+		}
 	}
 
 	// Initialize Files map if nil

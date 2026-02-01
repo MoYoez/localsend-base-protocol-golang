@@ -123,3 +123,55 @@ func ReadyToUploadTo(targetAddr *net.UDPAddr, remote *types.VersionMessage, requ
 		return nil, fmt.Errorf("prepare-upload request failed: %s", resp.Status)
 	}
 }
+
+// FetchDeviceInfo fetches device information from the target device using /api/localsend/v2/info endpoint.
+// Returns the device info response or an error.
+func FetchDeviceInfo(ip string, port int) (*types.CallbackLegacyVersionMessageHTTP, string, error) {
+	// Try HTTPS first, then fallback to HTTP
+	protocols := []string{"https", "http"}
+
+	var lastErr error
+	for _, protocol := range protocols {
+		url := tool.BuildInfoURL(protocol, ip, port)
+
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to create info request: %v", err)
+			continue
+		}
+
+		client := tool.GetHttpClient()
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to send info request to %s: %v", url, err)
+			continue
+		}
+
+		body, readErr := io.ReadAll(resp.Body)
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			tool.DefaultLogger.Errorf("Failed to close response body: %v", closeErr)
+		}
+
+		if readErr != nil {
+			lastErr = fmt.Errorf("failed to read info response body: %v", readErr)
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			lastErr = fmt.Errorf("info request failed with status: %s", resp.Status)
+			continue
+		}
+
+		var deviceInfo types.CallbackLegacyVersionMessageHTTP
+		if err := sonic.Unmarshal(body, &deviceInfo); err != nil {
+			lastErr = fmt.Errorf("failed to parse info response: %v", err)
+			continue
+		}
+
+		tool.DefaultLogger.Infof("FetchDeviceInfo: successfully got device info from %s: %s (fingerprint: %s)",
+			url, deviceInfo.Alias, deviceInfo.Fingerprint)
+		return &deviceInfo, protocol, nil
+	}
+
+	return nil, "", fmt.Errorf("failed to fetch device info from %s:%d: %v", ip, port, lastErr)
+}

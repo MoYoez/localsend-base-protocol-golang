@@ -176,3 +176,101 @@ func ShouldRespond(self *types.VersionMessage, incoming *types.VersionMessage) b
 	}
 	return true
 }
+
+// GetIPFromSuffix returns the full IP address from an IP suffix (last octet).
+// It finds the local network interface and constructs the full IP using the suffix.
+// For example, if local IP is 192.168.1.10 and suffix is "12", returns "192.168.1.12".
+// Suffix can be a number like "12" or with hash like "#12".
+func GetIPFromSuffix(suffix string) (string, error) {
+	// Remove # prefix if present
+	suffix = strings.TrimPrefix(suffix, "#")
+
+	// Parse suffix as integer
+	lastOctet, err := strconv.Atoi(suffix)
+	if err != nil {
+		return "", err
+	}
+
+	if lastOctet < 1 || lastOctet > 254 {
+		return "", errors.New("invalid IP suffix: must be between 1 and 254")
+	}
+
+	// Get all local interfaces
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", err
+	}
+
+	// Find the first valid IPv4 address and use its network prefix
+	for _, addr := range addrs {
+		ipnet, ok := addr.(*net.IPNet)
+		if !ok {
+			continue
+		}
+
+		ip := ipnet.IP.To4()
+		if ip == nil || ip.IsLoopback() {
+			continue
+		}
+
+		// Construct the target IP using the same network prefix
+		targetIP := net.IPv4(ip[0], ip[1], ip[2], byte(lastOctet))
+		return targetIP.String(), nil
+	}
+
+	return "", errors.New("no valid local IPv4 address found")
+}
+
+// GetAllIPsFromSuffix returns all possible full IP addresses from an IP suffix.
+// It checks all local network interfaces and constructs full IPs for each.
+func GetAllIPsFromSuffix(suffix string) ([]string, error) {
+	// Remove # prefix if present
+	suffix = strings.TrimPrefix(suffix, "#")
+
+	// Parse suffix as integer
+	lastOctet, err := strconv.Atoi(suffix)
+	if err != nil {
+		return nil, err
+	}
+
+	if lastOctet < 1 || lastOctet > 254 {
+		return nil, errors.New("invalid IP suffix: must be between 1 and 254")
+	}
+
+	// Get all local interfaces
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil, err
+	}
+
+	var results []string
+	seen := make(map[string]struct{})
+
+	// Find all valid IPv4 addresses and construct target IPs
+	for _, addr := range addrs {
+		ipnet, ok := addr.(*net.IPNet)
+		if !ok {
+			continue
+		}
+
+		ip := ipnet.IP.To4()
+		if ip == nil || ip.IsLoopback() {
+			continue
+		}
+
+		// Construct the target IP using the same network prefix
+		targetIP := net.IPv4(ip[0], ip[1], ip[2], byte(lastOctet)).String()
+
+		// Avoid duplicates
+		if _, exists := seen[targetIP]; !exists {
+			seen[targetIP] = struct{}{}
+			results = append(results, targetIP)
+		}
+	}
+
+	if len(results) == 0 {
+		return nil, errors.New("no valid local IPv4 address found")
+	}
+
+	return results, nil
+}

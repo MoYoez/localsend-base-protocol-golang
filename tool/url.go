@@ -51,3 +51,8 @@ func BuildCancelURL(targetAddr *net.UDPAddr, remote *types.VersionMessage, sessi
 	u.RawQuery = fmt.Sprintf("sessionId=%s", sessionId)
 	return StringToBytes(u.String()), nil
 }
+
+// BuildInfoURL builds the /info URL to get device information.
+func BuildInfoURL(protocol string, ip string, port int) string {
+	return fmt.Sprintf("%s://%s:%d/api/localsend/v2/info", protocol, ip, port)
+}
