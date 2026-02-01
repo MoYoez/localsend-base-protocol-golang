@@ -132,7 +132,7 @@ func (s *Server) setupRoutes() *gin.Engine {
 		indexPage := filepath.Join(tool.GetRunPositionDir(), WebOutPath, "index.html")
 		if _, err := os.Stat(indexPage); err == nil {
 			engine.StaticFile("/", indexPage)
-			nextStatic := filepath.Join(WebOutPath, "_next")
+			nextStatic := filepath.Join(tool.GetRunPositionDir(), WebOutPath, "_next")
 			if _, err := os.Stat(nextStatic); err == nil {
 				engine.Static("/_next", nextStatic)
 			}
