@@ -4,8 +4,8 @@ import { LanguageProvider } from "./context/LanguageContext";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Localsend-Go Download",
-  description: "Localsend-Go Download",
+  title: "Localsend-Go Downloader",
+  description: "Localsend-Go Downloader",
   icons:{
     icon: [{url: "/favicon.ico", sizes: "any"}, {url: "/favicon.svg", sizes: "any"}],
   },

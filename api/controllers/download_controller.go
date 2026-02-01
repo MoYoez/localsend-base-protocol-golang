@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -20,6 +21,9 @@ func HandlePrepareDownload(c *gin.Context) {
 	if sessionId == "" {
 		sessionId = c.Query("session") // alternative param from URL
 	}
+	// session to smaller case
+	sessionId = strings.ToLower(sessionId)
+
 	if sessionId == "1145141919810" {
 		// test playground for debuging num.
 		c.JSON(http.StatusOK, &types.PrepareUploadReverseProxyResp{
