@@ -52,6 +52,12 @@ func main() {
 	// initialize logger
 	tool.InitLogger()
 
+	// Download API: config or flag
+	downloadEnabled := appCfg.Download
+	if cfg.UseDownload {
+		downloadEnabled = true
+	}
+
 	message := &types.VersionMessage{
 		Alias:       appCfg.Alias,
 		Version:     appCfg.Version,
@@ -60,10 +66,14 @@ func main() {
 		Fingerprint: appCfg.Fingerprint,
 		Port:        appCfg.Port,
 		Protocol:    appCfg.Protocol,
-		Download:    appCfg.Download,
+		Download:    downloadEnabled,
 		Announce:    true,
 	}
 	api.SetSelfDevice(message)
+
+	if cfg.UseWebOutPath != "" {
+		api.WebOutPath = cfg.UseWebOutPath
+	}
 	if cfg.Log == "" {
 		tool.DefaultLogger.SetLevel(log.DebugLevel)
 	} else {

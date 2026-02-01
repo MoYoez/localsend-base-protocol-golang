@@ -5,6 +5,8 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/charmbracelet/log"
@@ -15,6 +17,10 @@ import (
 	"github.com/moyoez/localsend-base-protocol-golang/tool"
 	"github.com/moyoez/localsend-base-protocol-golang/types"
 )
+
+// WebOutPath is the path to the Next.js static export output (web/out)
+// Set via -webOutPath flag or defaults to web/out relative to working directory
+var WebOutPath = "web/out"
 
 // Server represents the HTTP API server for receiving TCP API requests
 type Server struct {
@@ -85,6 +91,11 @@ func (s *Server) setupRoutes() *gin.Engine {
 		v2.POST("/prepare-upload", uploadCtrl.HandlePrepareUpload)
 		v2.POST("/upload", uploadCtrl.HandleUpload)
 		v2.POST("/cancel", cancelCtrl.HandleCancel)
+		// Download API (LocalSend protocol Section 5)
+		if selfDevice := models.GetSelfDevice(); selfDevice != nil && selfDevice.Download {
+			v2.POST("/prepare-download", controllers.HandlePrepareDownload)
+			v2.GET("/download", controllers.HandleDownload)
+		}
 	}
 	// V1 Is Deprecated, but due to some reasons, I support to this ONLY ACCEPT REQUESTS.
 	v1 := engine.Group("/api/localsend/v1")
@@ -104,13 +115,31 @@ func (s *Server) setupRoutes() *gin.Engine {
 		self.POST("/prepare-upload", controllers.UserPrepareUpload)   // Prepare upload endpoint
 		self.POST("/upload", controllers.UserUpload)                  // Actual upload endpoint
 		self.POST("/upload-batch", controllers.UserUploadBatch)       // Batch upload endpoint (supports file:/// protocol)
-		self.GET("/confirm-recv", controllers.UserConfirmRecv)        // Confirm recv endpoint
+		self.GET("/confirm-recv", controllers.UserConfirmRecv)          // Confirm recv endpoint
+		self.GET("/confirm-download", controllers.UserConfirmDownload) // Confirm download endpoint
 		self.POST("/cancel", controllers.UserCancelUpload)            // Cancel upload endpoint (sender side)
 		self.GET("/get-image", controllers.UserGetImage)
 		self.GET("/favorites", controllers.UserFavoritesList)                     // List favorite devices
 		self.POST("/favorites", controllers.UserFavoritesAdd)                     // Add a favorite device
 		self.DELETE("/favorites/:fingerprint", controllers.UserFavoritesDelete)   // Remove a favorite device
 		self.GET("/get-network-interfaces", controllers.UserGetNetworkInterfaces) // Get network interfaces,used same as usergetNetwork Info
+		self.POST("/create-share-session", controllers.UserCreateShareSession)    // Create share session for download API
+		self.DELETE("/close-share-session", controllers.UserCloseShareSession)    // Close share session
+	}
+
+	// Serve Next.js static export for download page at root (when Download enabled and web/out exists)
+	if selfDevice := models.GetSelfDevice(); selfDevice != nil && selfDevice.Download {
+		indexPage := filepath.Join(WebOutPath, "index.html")
+		if _, err := os.Stat(indexPage); err == nil {
+			engine.StaticFile("/", indexPage)
+			nextStatic := filepath.Join(WebOutPath, "_next")
+			if _, err := os.Stat(nextStatic); err == nil {
+				engine.Static("/_next", nextStatic)
+			}
+			tool.DefaultLogger.Infof("[Server] Serving download page from %s", WebOutPath)
+		} else {
+			tool.DefaultLogger.Warnf("[Server] Download page not found at %s - run 'cd web && npm run build' first", indexPage)
+		}
 	}
 
 	return engine

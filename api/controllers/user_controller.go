@@ -95,6 +95,19 @@ type UserFavoritesAddRequest struct {
 	Alias       string `json:"alias"`       // Optional: device alias for display
 }
 
+// CreateShareSessionRequest represents the request body for creating a share session
+type CreateShareSessionRequest struct {
+	Files      map[string]types.FileInput `json:"files"`        // File metadata map, key is fileId; use fileUrl (file:///path) for local files
+	Pin        string                    `json:"pin,omitempty"` // Optional PIN for download access
+	AutoAccept bool                      `json:"autoAccept"`    // If true, no confirmation needed when receiver requests download
+}
+
+// CreateShareSessionResponse represents the response for create-share-session
+type CreateShareSessionResponse struct {
+	SessionId   string `json:"sessionId"`
+	DownloadUrl string `json:"downloadUrl"`
+}
+
 // UserUploadSessionContext holds the context and cancel function for a user upload session
 type UserUploadSessionContext struct {
 	Ctx    context.Context
@@ -252,6 +265,41 @@ func UserConfirmRecv(c *gin.Context) {
 	select {
 	case confirmCh <- types.ConfirmResult{Confirmed: confirmed}:
 		models.DeleteConfirmRecvChannel(sessionId)
+		c.JSON(http.StatusOK, tool.FastReturnSuccess())
+	default:
+		c.JSON(http.StatusConflict, tool.FastReturnError("Confirm channel busy"))
+	}
+}
+
+// UserConfirmDownload handles confirm download request
+// GET /api/self/v1/confirm-download?sessionId=xxx&confirmed=true|false
+func UserConfirmDownload(c *gin.Context) {
+	sessionId := strings.TrimSpace(c.Query("sessionId"))
+	confirmedRaw := strings.TrimSpace(c.Query("confirmed"))
+	if sessionId == "" {
+		c.JSON(http.StatusBadRequest, tool.FastReturnError("Missing required parameter: sessionId"))
+		return
+	}
+	if confirmedRaw == "" {
+		c.JSON(http.StatusBadRequest, tool.FastReturnError("Missing required parameter: confirmed"))
+		return
+	}
+
+	confirmed, err := strconv.ParseBool(confirmedRaw)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, tool.FastReturnError("Invalid parameter: confirmed"))
+		return
+	}
+
+	confirmCh, ok := models.GetConfirmDownloadChannel(sessionId)
+	if !ok {
+		c.JSON(http.StatusNotFound, tool.FastReturnError("Session not found or expired"))
+		return
+	}
+
+	select {
+	case confirmCh <- types.ConfirmResult{Confirmed: confirmed}:
+		models.DeleteConfirmDownloadChannel(sessionId)
 		c.JSON(http.StatusOK, tool.FastReturnSuccess())
 	default:
 		c.JSON(http.StatusConflict, tool.FastReturnError("Confirm channel busy"))
@@ -1059,4 +1107,118 @@ func UserFavoritesDelete(c *gin.Context) {
 // be aware default set to *(Means all)
 func UserGetNetworkInterfaces(c *gin.Context) {
 	c.JSON(http.StatusOK, tool.FastReturnSuccessWithData(share.GetSelfNetworkInfos()))
+}
+
+// UserCreateShareSession creates a share session for the download API
+// POST /api/self/v1/create-share-session
+// Request body: { "files": { fileId: { id, fileName, size, fileType, fileUrl } }, "pin": "optional", "autoAccept": true/false }
+func UserCreateShareSession(c *gin.Context) {
+	var request CreateShareSessionRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, tool.FastReturnError("Invalid request body: "+err.Error()))
+		return
+	}
+
+	if len(request.Files) == 0 {
+		c.JSON(http.StatusBadRequest, tool.FastReturnError("files is required and must not be empty"))
+		return
+	}
+
+	// Process each file: resolve fileUrl to path, get file info
+	files := make(map[string]models.ShareFileEntry)
+	for fileId, fileInput := range request.Files {
+		input := fileInput
+		if err := tool.ProcessFileInput(&input); err != nil {
+			c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("Invalid file %s: %v", fileId, err)))
+			return
+		}
+
+		// Get local path from fileUrl
+		var localPath string
+		if input.FileUrl != "" {
+			parsedUrl, err := url.Parse(input.FileUrl)
+			if err != nil || parsedUrl.Scheme != "file" {
+				c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("Invalid fileUrl for %s: must be file:// path", fileId)))
+				return
+			}
+			localPath = parsedUrl.Path
+		} else {
+			c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("fileUrl is required for file %s", fileId)))
+			return
+		}
+
+		// Verify file exists
+		if _, err := os.Stat(localPath); err != nil {
+			if os.IsNotExist(err) {
+				c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("File not found: %s", localPath)))
+				return
+			}
+			c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("Failed to access file %s: %v", localPath, err)))
+			return
+		}
+
+		fileIdVal := input.ID
+		if fileIdVal == "" {
+			fileIdVal = fileId
+		}
+		files[fileId] = models.ShareFileEntry{
+			FileInfo: types.FileInfo{
+				ID:       fileIdVal,
+				FileName: input.FileName,
+				Size:     input.Size,
+				FileType: input.FileType,
+				SHA256:   input.SHA256,
+				Preview:  input.Preview,
+			},
+			LocalPath: localPath,
+		}
+	}
+
+	sessionId := tool.GenerateRandomUUID()
+	session := &models.ShareSession{
+		SessionId:  sessionId,
+		Files:      files,
+		CreatedAt:  time.Now(),
+		Pin:        request.Pin,
+		AutoAccept: request.AutoAccept,
+	}
+	models.CacheShareSession(session)
+
+	// Build download URL: protocol://ip:port/?session=sessionId
+	cfg := tool.GetCurrentConfig()
+	protocol := cfg.Protocol
+	port := cfg.Port
+	host := "localhost"
+	if infos := share.GetSelfNetworkInfos(); len(infos) > 0 {
+		host = infos[0].IPAddress
+	}
+	downloadUrl := fmt.Sprintf("%s://%s:%d/?session=%s", protocol, host, port, sessionId)
+
+	tool.DefaultLogger.Infof("[CreateShareSession] Created session %s with %d files, pin=%v, autoAccept=%v",
+		sessionId, len(files), request.Pin != "", request.AutoAccept)
+
+	c.JSON(http.StatusOK, tool.FastReturnSuccessWithData(CreateShareSessionResponse{
+		SessionId:   sessionId,
+		DownloadUrl: downloadUrl,
+	}))
+}
+
+// UserCloseShareSession closes a share session
+// DELETE /api/self/v1/close-share-session?sessionId=xxx
+func UserCloseShareSession(c *gin.Context) {
+	sessionId := strings.TrimSpace(c.Query("sessionId"))
+	if sessionId == "" {
+		c.JSON(http.StatusBadRequest, tool.FastReturnError("Missing required parameter: sessionId"))
+		return
+	}
+
+	_, ok := models.GetShareSession(sessionId)
+	if !ok {
+		c.JSON(http.StatusNotFound, tool.FastReturnError("Session not found or expired"))
+		return
+	}
+
+	models.RemoveShareSession(sessionId)
+	tool.DefaultLogger.Infof("[CloseShareSession] Closed session %s", sessionId)
+	c.JSON(http.StatusOK, tool.FastReturnSuccess())
 }

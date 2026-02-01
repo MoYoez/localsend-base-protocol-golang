@@ -17,8 +17,10 @@ type Config struct {
 	UseAlias                 string
 	UseMixedScan             bool // if true, use mixed scan mode, both UDP and HTTP.
 	SkipNotify               bool // if true, skip notify mode.
-	UseHttps                 bool // if true, use https protocol; if false, use http protocol. Alias for protocol config.
-	ScanTimeout              int  // scan timeout in seconds, default 500. After timeout, auto scan will stop.
+	UseHttps                 bool   // if true, use https protocol; if false, use http protocol. Alias for protocol config.
+	ScanTimeout              int    // scan timeout in seconds, default 500. After timeout, auto scan will stop.
+	UseDownload              bool   // if true, enable download API (prepare-download, download, download page)
+	UseWebOutPath            string // path to Next.js static export output (default: web/out)
 }
 
 // SetFlags parses CLI flags and returns the override config.
@@ -39,6 +41,8 @@ func SetFlags() Config {
 	flag.BoolVar(&cfg.SkipNotify, "skipNotify", false, "if true, skip notify mode.")
 	flag.BoolVar(&cfg.UseHttps, "useHttps", true, "if true, use https (encrypted); if false, use http (unencrypted). Alias for protocol config.")
 	flag.IntVar(&cfg.ScanTimeout, "scanTimeout", 500, "scan timeout in seconds, default 500. After timeout, auto scan will stop. Set to 0 to disable timeout.")
+	flag.BoolVar(&cfg.UseDownload, "useDownload", false, "if true, enable download API (prepare-download, download, download page)")
+	flag.StringVar(&cfg.UseWebOutPath, "webOutPath", "web/out", "path to Next.js static export output for download page")
 	flag.Parse()
 	return cfg
 }

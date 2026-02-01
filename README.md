@@ -50,7 +50,8 @@ Actually it used for [decky-localsend](https://github.com/moyoez/decky-localsend
 | `-skipNotify`                 | bool    | false   | Skip notification mode                                                                       |
 | `-scanTimeout`                | int     | 500       | Timeout for device scan, in seconds                                                           |
 | `-useAutoSaveFromFavorites`   | bool    | false   | If true, automatically saves files from favorite devices without confirmation |
-
+| `-useDownload`                 | Boolean  | false    | if true，enable Download API（prepare-download、download、page）
+| `-webOutPath`                  | string   | web/out  | Next.js static download out here
 
 > Most of cases, mixed mode works well for most cases, if you prefer to reduce the power cost for your machine, switching to (Normal Mode - UDP Detected.) ,it will not make scan to the whole net.
 
