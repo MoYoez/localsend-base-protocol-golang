@@ -61,14 +61,6 @@ func GetOrCreateFingerprintFromConfig(cfg *AppConfig) string {
 	return GenerateTlsSha256Fingerprint
 }
 
-// GetOrCreateFingerprint returns the fingerprint based on TLS certificate.
-// This is kept for backward compatibility but now works with config.
-func GetOrCreateFingerprint(configPath string) string {
-	// This function is called during config loading, so we need to handle it differently
-	// Return empty string here, the actual fingerprint will be set in LoadConfig
-	return generateRandomFingerprint()
-}
-
 // generateRandomFingerprint generates a random 32-character fingerprint (fallback)
 func generateRandomFingerprint() string {
 	b := make([]byte, 16)
@@ -113,12 +105,6 @@ func GetOrCreateTLSCertFromConfig(cfg *AppConfig) (certDER []byte, keyDER []byte
 
 	DefaultLogger.Infof("TLS certificate generated and stored in config")
 	return certDER, keyDER, nil
-}
-
-// GetOrCreateTLSCert loads existing TLS certificate or generates a new one.
-// Deprecated: Use GetOrCreateTLSCertFromConfig instead.
-func GetOrCreateTLSCert(configPath string) (certDER []byte, keyDER []byte, err error) {
-	return GetOrCreateTLSCertFromConfig(&CurrentConfig)
 }
 
 // loadTLSCertFromPEM loads TLS certificate and key from PEM strings.
@@ -181,10 +167,4 @@ func generateTLSCert() (certDER []byte, keyDER []byte, err error) {
 	GenerateTlsSha256Fingerprint = hex.EncodeToString(hash[:16])
 
 	return certBytes, privateKeyBytes, nil
-}
-
-// GenerateTLSCert generates a self-signed TLS certificate and private key.
-// Deprecated: Use GetOrCreateTLSCert instead for persistent certificates.
-func GenerateTLSCert() (certDER []byte, keyDER []byte, err error) {
-	return generateTLSCert()
 }
