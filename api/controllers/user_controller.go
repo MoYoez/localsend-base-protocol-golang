@@ -1215,9 +1215,13 @@ func UserCreateShareSession(c *gin.Context) {
 	models.CacheShareSession(session)
 
 	// Build download URL: protocol://ip:port/?session=sessionId
-	cfg := tool.GetCurrentConfig()
-	protocol := cfg.Protocol
-	port := cfg.Port
+	selfDeviceInfo := models.GetSelfDevice()
+	if selfDeviceInfo == nil {
+		c.JSON(http.StatusInternalServerError, tool.FastReturnError("Local device information not configured"))
+		return
+	}
+	protocol := selfDeviceInfo.Protocol
+	port := 53317
 	host := "localhost"
 	if infos := share.GetSelfNetworkInfos(); len(infos) > 0 {
 		host = infos[0].IPAddress
