@@ -19,7 +19,11 @@ func init() {
 func NewHTTPClient() *http.Client {
 	client := &http.Client{Timeout: DefaultTimeout}
 	client.Transport = &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+		MaxIdleConns:        50,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     300 * time.Millisecond,
+		DisableKeepAlives:   false,
 	}
 	return client
 }

@@ -43,8 +43,8 @@
 | `-useAlias`                    | string  | (空) | 指定别名以在互联网上显示 |
 | `-useHttps`                   | bool    | true    | 若为 true，使用 https（加密）；若为 false，使用 http（不加密）。protocol 配置的别名。 |
 | `-useMixedScan`               | bool    | false   | 使用混合模式扫描 (UDP+HTTP)
-| `-skipNotify`                 | bool    | false   | 跳过对 Decky 的 unix 的通信      
-| `-scanTimeout`                | int     | 500       | 设备扫描超时时间       
+| `-skipNotify`                 | bool    | false   | 跳过对 Decky 的 unix 的通信
+| `-scanTimeout`                | int     | 500       | 设备扫描超时时间
 
 #### 小提示
 

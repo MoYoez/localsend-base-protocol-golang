@@ -172,12 +172,15 @@ func NewDefaultHandler() *Handler {
 				}
 				// timeout is 30
 				confirmTimeout := 30 * time.Second
+				confirmTimeOuttimer := time.NewTimer(confirmTimeout)
+
+				defer confirmTimeOuttimer.Stop()
 				select {
 				case result := <-confirmCh:
 					if !result.Confirmed {
 						return nil, fmt.Errorf("rejected")
 					}
-				case <-time.After(confirmTimeout):
+				case <-confirmTimeOuttimer.C:
 					return nil, fmt.Errorf("rejected")
 				}
 			}

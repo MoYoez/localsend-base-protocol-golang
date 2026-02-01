@@ -258,7 +258,9 @@ func (ctrl *UploadController) HandleUploadV1Upload(c *gin.Context) {
 
 			// Send notification when all files are processed (even if some failed)
 			if isLast && stats != nil {
-				go func(sid string, stats *models.SessionUploadStats) {
+				go func(sid string, stats *models.SessionUploadStats, remoteAddr string) {
+					// remove session
+					models.RemoveV1Session(remoteAddr)
 					tool.DefaultLogger.Infof("[V1 Notify] Sending upload_end notification (all files processed): sessionId=%s, success=%d, failed=%d",
 						sid, stats.SuccessFiles, stats.FailedFiles)
 					if err := notify.SendUploadNotification("upload_end", sid, "", map[string]any{
@@ -269,8 +271,10 @@ func (ctrl *UploadController) HandleUploadV1Upload(c *gin.Context) {
 					}); err != nil {
 						tool.DefaultLogger.Errorf("[V1 Notify] Failed to send upload_end notification: %v", err)
 					}
+
 					models.CleanupSessionStats(sid)
-				}(sessionId, stats)
+					models.RemoveUploadSession(sid)
+				}(sessionId, stats, remoteAddr)
 			}
 
 			errorMsg := uploadErr.Error()
@@ -314,6 +318,7 @@ func (ctrl *UploadController) HandleUploadV1Upload(c *gin.Context) {
 						tool.DefaultLogger.Errorf("[V1 Notify] Failed to send upload_end notification: %v", err)
 					}
 					models.CleanupSessionStats(sid)
+					models.RemoveUploadSession(sid)
 				}(sessionId, fileId, fileInfo, stats)
 			}
 		}
@@ -374,6 +379,7 @@ func (ctrl *UploadController) HandleUpload(c *gin.Context) {
 						tool.DefaultLogger.Errorf("[Notify] Failed to send upload_end notification: %v", err)
 					}
 					models.CleanupSessionStats(sid)
+					models.RemoveUploadSession(sid)
 				}(sessionId, stats)
 			}
 
@@ -420,6 +426,7 @@ func (ctrl *UploadController) HandleUpload(c *gin.Context) {
 						tool.DefaultLogger.Infof("[Notify] Successfully sent upload_end notification for session: %s", sid)
 					}
 					models.CleanupSessionStats(sid)
+					models.RemoveUploadSession(sid)
 				}(sessionId, fileId, fileInfo, stats)
 			}
 		}
