@@ -1124,39 +1124,65 @@ func UserCreateShareSession(c *gin.Context) {
 		return
 	}
 
-	// Process each file: resolve fileUrl to path, get file info
+	// Process each file or folder: resolve fileUrl to path, get file info (folders are expanded to all files inside)
 	files := make(map[string]models.ShareFileEntry)
 	for fileId, fileInput := range request.Files {
 		input := fileInput
+		if input.FileUrl == "" {
+			c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("fileUrl is required for %s", fileId)))
+			return
+		}
+		parsedUrl, err := url.Parse(input.FileUrl)
+		if err != nil || parsedUrl.Scheme != "file" {
+			c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("Invalid fileUrl for %s: must be file:// path", fileId)))
+			return
+		}
+		localPath := parsedUrl.Path
+
+		// Verify path exists
+		info, err := os.Stat(localPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("File or folder not found: %s", localPath)))
+				return
+			}
+			c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("Failed to access %s: %v", localPath, err)))
+			return
+		}
+
+		if info.IsDir() {
+			// Folder: expand to all files inside and add each as a separate entry
+			fileInputMap, pathMap, err := tool.ProcessPathInput(localPath, true)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("Invalid folder %s: %v", fileId, err)))
+				return
+			}
+			for id, inp := range fileInputMap {
+				entryPath := pathMap[id]
+				idVal := inp.ID
+				if idVal == "" {
+					idVal = id
+				}
+				files[id] = models.ShareFileEntry{
+					FileInfo: types.FileInfo{
+						ID:       idVal,
+						FileName: inp.FileName,
+						Size:     inp.Size,
+						FileType: inp.FileType,
+						SHA256:   inp.SHA256,
+						Preview:  inp.Preview,
+					},
+					LocalPath: entryPath,
+				}
+			}
+			continue
+		}
+
+		// Single file: fill metadata from path and add one entry
 		if err := tool.ProcessFileInput(&input); err != nil {
 			c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("Invalid file %s: %v", fileId, err)))
 			return
 		}
-
-		// Get local path from fileUrl
-		var localPath string
-		if input.FileUrl != "" {
-			parsedUrl, err := url.Parse(input.FileUrl)
-			if err != nil || parsedUrl.Scheme != "file" {
-				c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("Invalid fileUrl for %s: must be file:// path", fileId)))
-				return
-			}
-			localPath = parsedUrl.Path
-		} else {
-			c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("fileUrl is required for file %s", fileId)))
-			return
-		}
-
-		// Verify file exists
-		if _, err := os.Stat(localPath); err != nil {
-			if os.IsNotExist(err) {
-				c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("File not found: %s", localPath)))
-				return
-			}
-			c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("Failed to access file %s: %v", localPath, err)))
-			return
-		}
-
 		fileIdVal := input.ID
 		if fileIdVal == "" {
 			fileIdVal = fileId
