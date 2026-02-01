@@ -91,15 +91,15 @@ type UserUploadSession struct {
 
 // UserFavoritesAddRequest represents the request body for adding a favorite device
 type UserFavoritesAddRequest struct {
-	Fingerprint string `json:"fingerprint"` // Required: device fingerprint
-	Alias       string `json:"alias"`       // Optional: device alias for display
+	Fingerprint string `json:"favorite_fingerprint"` // Required: device fingerprint
+	Alias       string `json:"favorite_alias"`       // Optional: device alias for display
 }
 
 // CreateShareSessionRequest represents the request body for creating a share session
 type CreateShareSessionRequest struct {
-	Files      map[string]types.FileInput `json:"files"`        // File metadata map, key is fileId; use fileUrl (file:///path) for local files
-	Pin        string                    `json:"pin,omitempty"` // Optional PIN for download access
-	AutoAccept bool                      `json:"autoAccept"`    // If true, no confirmation needed when receiver requests download
+	Files      map[string]types.FileInput `json:"files"`         // File metadata map, key is fileId; use fileUrl (file:///path) for local files
+	Pin        string                     `json:"pin,omitempty"` // Optional PIN for download access
+	AutoAccept bool                       `json:"autoAccept"`    // If true, no confirmation needed when receiver requests download
 }
 
 // CreateShareSessionResponse represents the response for create-share-session
