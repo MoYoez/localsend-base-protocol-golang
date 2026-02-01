@@ -45,6 +45,7 @@
 | `-useMixedScan`               | bool    | false   | 使用混合模式扫描 (UDP+HTTP)
 | `-skipNotify`                 | bool    | false   | 跳过对 Decky 的 unix 的通信
 | `-scanTimeout`                | int     | 500       | 设备扫描超时时间
+| `-useAutoSaveFromFavorites`   | bool   | false   | 若为 true，则仅自动保存来自收藏设备的文件，无需确认 |
 
 #### 小提示
 
