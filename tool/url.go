@@ -13,6 +13,11 @@ func BuildRegisterURL(targetAddr *net.UDPAddr, remote *types.VersionMessage) ([]
 	return StringToBytes(fmt.Sprintf("%s://%s:%d/api/localsend/v2/register", remote.Protocol, targetAddr.IP.String(), remote.Port)), nil
 }
 
+// BuildOnly BuildRegisterUrlWithParams
+func BuildRegisterUrlWithParams(protocol, targetIP string, multcastPort int) string {
+	return fmt.Sprintf("%s://%s:%d/api/localsend/v2/register", protocol, targetIP, multcastPort)
+}
+
 // BuildPrepareUploadURL builds the /prepare-upload URL.
 // If pin is not empty, add query parameter ?pin=xxx.
 func BuildPrepareUploadURL(targetAddr *net.UDPAddr, remote *types.VersionMessage, pin string) ([]byte, error) {

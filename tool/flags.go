@@ -13,6 +13,7 @@ type Config struct {
 	UseReferNetworkInterface string // fixes when using virtual network interface. e.g. Clash TUN.
 	UsePin                   string
 	UseAutoSave              bool // if false, user require to confirm before recv.
+	UseAutoSaveFromFavorites bool // if true and useAutoSave is false, auto-accept from favorite devices only.
 	UseAlias                 string
 	UseMixedScan             bool // if true, use mixed scan mode, both UDP and HTTP.
 	SkipNotify               bool // if true, skip notify mode.
@@ -32,6 +33,7 @@ func SetFlags() Config {
 	flag.StringVar(&cfg.UseReferNetworkInterface, "useReferNetworkInterface", "*", "specify network interface (e.g., 'en0', 'eth0') or '*' for all interfaces")
 	flag.StringVar(&cfg.UsePin, "usePin", "", "specify pin for upload (only for FROM upload request)")
 	flag.BoolVar(&cfg.UseAutoSave, "useAutoSave", true, "if false, user require to confirm before recv (only for FROM upload request)")
+	flag.BoolVar(&cfg.UseAutoSaveFromFavorites, "useAutoSaveFromFavorites", false, "if true and useAutoSave is false, auto-accept from favorite devices only")
 	flag.StringVar(&cfg.UseAlias, "useAlias", "", "specify alias for the device")
 	flag.BoolVar(&cfg.UseMixedScan, "useMixedScan", false, "if true, use mixed scan mode, both UDP and HTTP.")
 	flag.BoolVar(&cfg.SkipNotify, "skipNotify", false, "if true, skip notify mode.")

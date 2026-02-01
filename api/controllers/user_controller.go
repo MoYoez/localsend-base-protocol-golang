@@ -85,6 +85,12 @@ type UserUploadSession struct {
 	Tokens    map[string]string         // File ID to token mapping
 }
 
+// UserFavoritesAddRequest represents the request body for adding a favorite device
+type UserFavoritesAddRequest struct {
+	Fingerprint string `json:"fingerprint"` // Required: device fingerprint
+	Alias       string `json:"alias"`       // Optional: device alias for display
+}
+
 // UserUploadSessionContext holds the context and cancel function for a user upload session
 type UserUploadSessionContext struct {
 	Ctx    context.Context
@@ -282,9 +288,7 @@ func UserPrepareUpload(c *gin.Context) {
 		// Merge additional files with folder files
 		if len(additionalFiles) > 0 {
 			tool.DefaultLogger.Infof("[PrepareUpload] Merging %d additional files with folder files", len(additionalFiles))
-			for fileID, fileInput := range additionalFiles {
-				request.Files[fileID] = fileInput
-			}
+			maps.Copy(request.Files, additionalFiles)
 		}
 	}
 
@@ -925,4 +929,58 @@ func UserGetImage(c *gin.Context) {
 	}
 
 	c.Data(http.StatusOK, "image/jpeg", image)
+}
+
+// UserFavoritesList returns the list of favorite devices.
+// GET /api/self/v1/favorites
+func UserFavoritesList(c *gin.Context) {
+	favorites := tool.ListFavorites()
+	c.JSON(http.StatusOK, tool.FastReturnSuccessWithData(favorites))
+}
+
+// UserFavoritesAdd adds a device to favorites.
+// POST /api/self/v1/favorites
+// Body: { "fingerprint": "...", "alias": "..." }
+func UserFavoritesAdd(c *gin.Context) {
+	var request UserFavoritesAddRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, tool.FastReturnError("Invalid request body: "+err.Error()))
+		return
+	}
+
+	if request.Fingerprint == "" {
+		c.JSON(http.StatusBadRequest, tool.FastReturnError("fingerprint is required"))
+		return
+	}
+
+	if err := tool.AddFavorite(request.Fingerprint, request.Alias); err != nil {
+		c.JSON(http.StatusInternalServerError, tool.FastReturnError("Failed to add favorite: "+err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, tool.FastReturnSuccess())
+}
+
+// UserFavoritesDelete removes a device from favorites.
+// DELETE /api/self/v1/favorites/:fingerprint
+func UserFavoritesDelete(c *gin.Context) {
+	fingerprint := c.Param("fingerprint")
+	if fingerprint == "" {
+		c.JSON(http.StatusBadRequest, tool.FastReturnError("fingerprint is required"))
+		return
+	}
+
+	if err := tool.RemoveFavorite(fingerprint); err != nil {
+		c.JSON(http.StatusInternalServerError, tool.FastReturnError("Failed to remove favorite: "+err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, tool.FastReturnSuccess())
+}
+
+// UserGetNetworkInterfaces returns the list of network interfaces.
+// GET /api/self/v1/get-network-interfaces
+// be aware default set to *(Means all)
+func UserGetNetworkInterfaces(c *gin.Context) {
+	c.JSON(http.StatusOK, tool.FastReturnSuccessWithData(share.GetSelfNetworkInfos()))
 }

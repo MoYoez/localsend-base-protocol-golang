@@ -3,15 +3,12 @@ package boardcast
 import (
 	"bytes"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -165,12 +162,12 @@ func listenOnInterface(iface *net.Interface, addr *net.UDPAddr, self *types.Vers
 				continue
 			}
 			// Ignore non-announce or from self broadcasts.
-			if !shouldRespond(self, &incoming) {
+			if !tool.ShouldRespond(self, &incoming) {
 				continue
 			}
 			tool.DefaultLogger.Debugf("Received %d bytes from %s on interface %s\n", n, addr.String(), interfaceName)
 			tool.DefaultLogger.Debugf("Data: %s\n", string(buf[:n]))
-			udpAddr, castErr := castToUDPAddr(addr)
+			udpAddr, castErr := CastToUDPAddr(addr)
 			if castErr != nil {
 				tool.DefaultLogger.Errorf("Unexpected UDP address: %v\n", castErr)
 				continue
@@ -232,15 +229,10 @@ func ListenMulticastUsingUDP(self *types.VersionMessage) {
 	}
 }
 
-// SendMulticastUsingUDP sends a multicast message to the multicast address to announce the device.
-// https://github.com/localsend/protocol/blob/main/README.md#31-multicast-udp-default
-func SendMulticastUsingUDP(message *types.VersionMessage) error {
-	return SendMulticastUsingUDPWithTimeout(message, 0)
-}
-
-// SendMulticastUsingUDPWithTimeout sends multicast messages with configurable timeout.
 // timeout: total duration in seconds after which sending stops. 0 means no timeout.
 // Supports restart via RestartAutoScan() which resets the timeout timer.
+// SendMulticastUsingUDP sends a multicast message to the multicast address to announce the device.
+// https://github.com/localsend/protocol/blob/main/README.md#31-multicast-udp-default
 func SendMulticastUsingUDPWithTimeout(message *types.VersionMessage, timeout int) error {
 	addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", multcastAddress, multcastPort))
 	if err != nil {
@@ -331,7 +323,7 @@ func SendMulticastUsingUDPWithTimeout(message *types.VersionMessage, timeout int
 		}
 		_, err = c.Write(payload)
 		if err != nil {
-			if IsAddrNotAvailableError(err) {
+			if tool.IsAddrNotAvailableError(err) {
 				tool.DefaultLogger.Warnf("IP address not available, please check your network environment and try again: %v", err)
 				_ = c.Close()
 				c = nil
@@ -373,7 +365,7 @@ func SendMulticastOnce(message *types.VersionMessage) error {
 	}
 	c, err := net.DialUDP("udp4", nil, addr)
 	if err != nil {
-		if IsAddrNotAvailableError(err) {
+		if tool.IsAddrNotAvailableError(err) {
 			return fmt.Errorf("IP address not available, please check your network environment and try again: %w", err)
 		}
 		return fmt.Errorf("failed to dial UDP address: %v", err)
@@ -384,7 +376,7 @@ func SendMulticastOnce(message *types.VersionMessage) error {
 		return fmt.Errorf("failed to marshal message: %v", err)
 	}
 	if _, err := c.Write(payload); err != nil {
-		if IsAddrNotAvailableError(err) {
+		if tool.IsAddrNotAvailableError(err) {
 			return fmt.Errorf("IP address not available, please check your network environment and try again: %w", err)
 		}
 		return fmt.Errorf("failed to write message: %v", err)
@@ -457,84 +449,13 @@ func CallbackMulticastMessageUsingUDP(message *types.VersionMessage) error {
 	}
 	_, err = c.Write(payload)
 	if err != nil {
-		if IsAddrNotAvailableError(err) {
+		if tool.IsAddrNotAvailableError(err) {
 			return fmt.Errorf("IP address not available, please check your network environment and try again: %w", err)
 		}
 		return fmt.Errorf("failed to write message: %v", err)
 	}
 	tool.DefaultLogger.Debugf("Sent UDP multicast message to %s", addr.String())
 	return nil
-}
-
-// IsAddrNotAvailableError detects address-not-available errors across platforms.
-func IsAddrNotAvailableError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, syscall.EADDRNOTAVAIL) {
-		return true
-	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "can't assign requested address") ||
-		strings.Contains(msg, "cannot assign requested address") ||
-		strings.Contains(msg, "address not available")
-}
-
-// generateNetworkIPs generates all IP addresses in the given network.
-// For /24 networks, it generates IPs from .1 to .254
-// For larger networks, it limits to 254 IPs to avoid excessive scanning.
-func generateNetworkIPs(ipnet *net.IPNet) []string {
-	var ips []string
-	ip := ipnet.IP.To4()
-	if ip == nil {
-		return ips
-	}
-
-	mask := ipnet.Mask
-	network := ip.Mask(mask)
-
-	// Calculate the number of host bits
-	ones, bits := mask.Size()
-	if bits != 32 {
-		return ips
-	}
-	hostBits := 32 - ones
-
-	// Limit to 254 hosts to avoid excessive scanning
-	maxHosts := 254
-	if hostBits < 8 {
-		// For smaller networks, use actual host count
-		maxHosts = (1 << hostBits) - 2 // -2 for network and broadcast
-	}
-
-	// Generate IPs by incrementing the host part
-	for i := 1; i <= maxHosts; i++ {
-		ip := make(net.IP, 4)
-		copy(ip, network)
-
-		// Calculate host part based on network size
-		if hostBits <= 8 {
-			// Simple case: host part is in last octet only
-			ip[3] = network[3] + byte(i)
-		} else if hostBits <= 16 {
-			// Host part spans last two octets
-			ip[3] = network[3] + byte(i&0xff)
-			ip[2] = network[2] + byte((i>>8)&0xff)
-		} else {
-			// Host part spans last three octets
-			ip[3] = network[3] + byte(i&0xff)
-			ip[2] = network[2] + byte((i>>8)&0xff)
-			ip[1] = network[1] + byte((i>>16)&0xff)
-		}
-
-		// Skip if it equals the network address
-		if ip.Equal(network) {
-			continue
-		}
-
-		ips = append(ips, ip.String())
-	}
-	return ips
 }
 
 // getCachedNetworkIPs returns cached network IPs or generates new ones if cache is invalid.
@@ -575,7 +496,7 @@ func getCachedNetworkIPs() ([]string, error) {
 		if !ok || ipnet.IP.IsLoopback() || ipnet.IP.To4() == nil {
 			continue
 		}
-		networkIPs := generateNetworkIPs(ipnet)
+		networkIPs := tool.GenerateNetworkIPs(ipnet)
 		targets = append(targets, networkIPs...)
 	}
 
@@ -589,28 +510,6 @@ func getCachedNetworkIPs() ([]string, error) {
 	result := make([]string, len(targets))
 	copy(result, targets)
 	return result, nil
-}
-
-// quickTCPProbe checks if a port is open using a fast TCP connection attempt.
-// Returns true if the port is open, false otherwise.
-func quickTCPProbe(ip string, port int) bool {
-	addr := net.JoinHostPort(ip, strconv.Itoa(port))
-	conn, err := net.DialTimeout("tcp", addr, tcpProbeTimeout)
-	if err != nil {
-		//	tool.DefaultLogger.Debugf("quickTCPProbe: failed to dial %s: %v", addr, err)
-		return false
-	}
-	tool.DefaultLogger.Debugf("quickTCPProbe: dial %s success", addr)
-	conn.Close()
-	return true
-}
-
-// Legacy: HTTP-only fallback for devices that don't support UDP multicast.
-// If multicast fails, send an HTTP POST to /api/localsend/v2/register on all local IPs to discover devices.
-// This function runs in a loop, scanning every 30 seconds until timeout.
-// Optimized with: TCP quick probe, concurrency limit, and shorter timeouts.
-func ListenMulticastUsingHTTP(self *types.VersionMessageHTTP) {
-	ListenMulticastUsingHTTPWithTimeout(self, 0)
 }
 
 // ListenMulticastUsingHTTPWithTimeout is the same as ListenMulticastUsingHTTP but with configurable timeout.
@@ -733,8 +632,7 @@ func ListenMulticastUsingHTTPWithTimeout(self *types.VersionMessageHTTP, timeout
 				defer func() { <-sem }()
 
 				// Quick TCP probe first - skip if port is not open
-
-				if !quickTCPProbe(targetIP, multcastPort) {
+				if !tool.QuickTCPProbe(targetIP, multcastPort, tcpProbeTimeout) {
 					return
 				}
 
@@ -840,15 +738,13 @@ func ListenMulticastUsingHTTPWithTimeout(self *types.VersionMessageHTTP, timeout
 
 // sendRegisterRequest sends a register request to the remote device.
 func sendRegisterRequest(url string, payload string) error {
-	req, err := http.NewRequest("POST", url, bytes.NewReader(tool.StringToBytes(payload)))
+	req, err := tool.NewHTTPReqWithApplication(http.NewRequest("POST", url, bytes.NewReader(tool.StringToBytes(payload))))
 	if err != nil {
 		return fmt.Errorf("failed to create register request: %v", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
 	tool.DefaultLogger.Debugf("Sent: %s, using Payload: %s", url, payload)
 
-	client := tool.GetHttpClient()
-	resp, err := client.Do(req)
+	resp, err := tool.GetHttpClient().Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send register request: %v", err)
 	}
@@ -859,18 +755,12 @@ func sendRegisterRequest(url string, payload string) error {
 	return nil
 }
 
-// ValidateCallbackParams validates the callback parameters.
-// Made public for reuse in other packages.
-func ValidateCallbackParams(targetAddr *net.UDPAddr, self *types.CallbackVersionMessageHTTP, remote *types.VersionMessage) error {
+// validateCallbackParams validates the callback parameters (internal use).
+func validateCallbackParams(targetAddr *net.UDPAddr, self *types.CallbackVersionMessageHTTP, remote *types.VersionMessage) error {
 	if targetAddr == nil || self == nil || remote == nil {
 		return fmt.Errorf("invalid callback params")
 	}
 	return nil
-}
-
-// validateCallbackParams validates the callback parameters (internal use).
-func validateCallbackParams(targetAddr *net.UDPAddr, self *types.CallbackVersionMessageHTTP, remote *types.VersionMessage) error {
-	return ValidateCallbackParams(targetAddr, self, remote)
 }
 
 // CastToUDPAddr casts the address to a UDP address.
@@ -881,11 +771,6 @@ func CastToUDPAddr(addr net.Addr) (*net.UDPAddr, error) {
 		return nil, fmt.Errorf("unexpected address type: %T", addr)
 	}
 	return udpAddr, nil
-}
-
-// castToUDPAddr casts the address to a UDP address (internal use).
-func castToUDPAddr(addr net.Addr) (*net.UDPAddr, error) {
-	return CastToUDPAddr(addr)
 }
 
 // ParseVersionMessageFromBody parses a VersionMessage from HTTP request body.
@@ -906,17 +791,6 @@ func ParsePrepareUploadRequestFromBody(body []byte) (*types.PrepareUploadRequest
 		return nil, fmt.Errorf("failed to parse prepare-upload request: %v", err)
 	}
 	return &request, nil
-}
-
-// shouldRespond determines if the device should respond to the incoming message (internal use).
-func shouldRespond(self *types.VersionMessage, incoming *types.VersionMessage) bool {
-	if incoming == nil || !incoming.Announce {
-		return false
-	}
-	if self != nil && self.Fingerprint != "" && incoming.Fingerprint == self.Fingerprint {
-		return false
-	}
-	return true
 }
 
 // SetScanConfig sets the current scan configuration for scan-now API
@@ -997,33 +871,27 @@ func ScanOnceHTTP(self *types.VersionMessageHTTP) error {
 			defer func() { <-sem }()
 
 			// Quick TCP probe first
-			if !quickTCPProbe(targetIP, multcastPort) {
+			if !tool.QuickTCPProbe(targetIP, multcastPort, tcpProbeTimeout) {
 				return
 			}
-
 			// Port is open, proceed with HTTP request
 			protocol := "https"
-			url := fmt.Sprintf("%s://%s:%d/api/localsend/v2/register", protocol, targetIP, multcastPort)
-			req, err := http.NewRequest("POST", url, bytes.NewReader(payloadBytes))
+			url := tool.BuildRegisterUrlWithParams(protocol, targetIP, multcastPort)
+			req, err := tool.NewHTTPReqWithApplication(http.NewRequest("POST", url, bytes.NewReader(payloadBytes)))
 			if err != nil {
 				return
 			}
-			req.Header.Set("Content-Type", "application/json")
-
 			resp, err := httpClient.Do(req)
 			globalProtocol := "https"
 			if err != nil {
-
 				if strings.Contains(err.Error(), "EOF") {
 					protocol = "http"
 					globalProtocol = "http"
-					url = fmt.Sprintf("%s://%s:%d/api/localsend/v2/register", protocol, targetIP, multcastPort)
-					req, err = http.NewRequest("POST", url, bytes.NewReader(payloadBytes))
+					url = tool.BuildRegisterUrlWithParams(protocol, targetIP, multcastPort)
+					req, err = tool.NewHTTPReqWithApplication(http.NewRequest("POST", url, bytes.NewReader(payloadBytes)))
 					if err != nil {
 						return
 					}
-					req.Header.Set("Content-Type", "application/json")
-
 					resp, err = httpClient.Do(req)
 					if err != nil {
 						return

@@ -61,7 +61,7 @@ func GetOrCreateFingerprintFromConfig(cfg *AppConfig) string {
 	return GenerateTlsSha256Fingerprint
 }
 
-// generateRandomFingerprint generates a random 32-character fingerprint (fallback)
+// generateRandomFingerprint generates a random 32-character fingerprint (fallback), for http method.
 func generateRandomFingerprint() string {
 	b := make([]byte, 16)
 	cryptorand.Read(b)

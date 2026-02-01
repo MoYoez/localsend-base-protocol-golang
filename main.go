@@ -42,7 +42,12 @@ func main() {
 		notify.UseNotify = false
 	}
 
-	tool.SetProgramConfigStatus(cfg.UsePin, cfg.UseAutoSave)
+	// Determine autoSaveFromFavorites: flag overrides config if set
+	autoSaveFromFavorites := appCfg.AutoSaveFromFavorites
+	if cfg.UseAutoSaveFromFavorites {
+		autoSaveFromFavorites = true
+	}
+	tool.SetProgramConfigStatus(cfg.UsePin, cfg.UseAutoSave, autoSaveFromFavorites)
 
 	// initialize logger
 	tool.InitLogger()
@@ -77,15 +82,12 @@ func main() {
 
 	handler := api.NewDefaultHandler()
 	// Determine config path for TLS certificate storage
-	configPath := cfg.UseConfigPath
-	if configPath == "" {
-		configPath = tool.DefaultConfigPath
-	}
 	// due to protocol request, need to 53317 by default
-	apiServer := api.NewServerWithConfig(53317, appCfg.Protocol, handler, configPath)
+	apiServer := api.NewServerWithConfig(53317, appCfg.Protocol, handler, cfg.UseConfigPath)
 	go func() {
 		if err := apiServer.Start(); err != nil {
 			tool.DefaultLogger.Fatalf("API server startup failed: %v", err)
+			panic(err)
 		}
 	}()
 

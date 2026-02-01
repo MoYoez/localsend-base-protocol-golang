@@ -141,7 +141,21 @@ func NewDefaultHandler() *Handler {
 				return nil, fmt.Errorf("Invalid PIN")
 			}
 
-			if !tool.GetProgramConfigStatus().AutoSave {
+			programConfig := tool.GetProgramConfigStatus()
+			// Check if we need user confirmation:
+			// - If AutoSave is true: no confirmation needed
+			// - If AutoSaveFromFavorites is true AND sender is in favorites: no confirmation needed
+			// - Otherwise: need confirmation
+			needConfirmation := !programConfig.AutoSave
+			if needConfirmation && programConfig.AutoSaveFromFavorites {
+				// Check if sender is in favorites (real-time read from config)
+				if tool.IsFavorite(request.Info.Fingerprint) {
+					tool.DefaultLogger.Infof("Auto-accepting from favorite device: %s (fingerprint: %s)", request.Info.Alias, request.Info.Fingerprint)
+					needConfirmation = false
+				}
+			}
+
+			if needConfirmation {
 				// user is required to confirm before recv.
 				confirmCh := make(chan types.ConfirmResult, 1)
 				models.SetConfirmRecvChannel(askSession, confirmCh)

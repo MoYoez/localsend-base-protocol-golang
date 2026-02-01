@@ -27,11 +27,10 @@ type Server struct {
 	mu         sync.RWMutex
 }
 
-// DefaultUploadFolder is the default folder for uploads
-var DefaultUploadFolder = "uploads"
-
-// DefaultConfigPath is the default config file path for TLS cert storage
-var DefaultConfigPath = "config.yaml"
+var (
+	DefaultConfigPath   = "config.yaml"
+	DefaultUploadFolder = "uploads"
+)
 
 // SetSelfDevice sets the local device info used for user-side scanning.
 func SetSelfDevice(device *types.VersionMessage) {
@@ -48,24 +47,6 @@ func init() {
 	models.DefaultUploadFolder = DefaultUploadFolder
 }
 
-// NewServer creates a new API server instance
-func NewServer(port int, protocol string, handler *Handler) *Server {
-	if handler == nil {
-		handler = &Handler{}
-	}
-	return &Server{
-		port:       port,
-		protocol:   protocol,
-		handler:    handler,
-		configPath: DefaultConfigPath,
-	}
-}
-
-// SetConfigPath sets the config file path for TLS certificate storage
-func SetConfigPath(path string) {
-	DefaultConfigPath = path
-}
-
 // NewServerWithConfig creates a new API server instance with custom config path
 func NewServerWithConfig(port int, protocol string, handler *Handler, configPath string) *Server {
 	if handler == nil {
@@ -80,11 +61,6 @@ func NewServerWithConfig(port int, protocol string, handler *Handler, configPath
 		handler:    handler,
 		configPath: configPath,
 	}
-}
-
-// Handler returns the HTTP handler with all registered endpoints.
-func (s *Server) Handler() http.Handler {
-	return s.setupRoutes()
 }
 
 func (s *Server) setupRoutes() *gin.Engine {
@@ -131,6 +107,10 @@ func (s *Server) setupRoutes() *gin.Engine {
 		self.GET("/confirm-recv", controllers.UserConfirmRecv)        // Confirm recv endpoint
 		self.POST("/cancel", controllers.UserCancelUpload)            // Cancel upload endpoint (sender side)
 		self.GET("/get-image", controllers.UserGetImage)
+		self.GET("/favorites", controllers.UserFavoritesList)                     // List favorite devices
+		self.POST("/favorites", controllers.UserFavoritesAdd)                     // Add a favorite device
+		self.DELETE("/favorites/:fingerprint", controllers.UserFavoritesDelete)   // Remove a favorite device
+		self.GET("/get-network-interfaces", controllers.UserGetNetworkInterfaces) // Get network interfaces,used same as usergetNetwork Info
 	}
 
 	return engine
@@ -188,14 +168,4 @@ func (s *Server) Start() error {
 	}
 
 	return s.server.ListenAndServe()
-}
-
-// Stop stops the HTTP server
-func (s *Server) Stop() error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.server != nil {
-		return s.server.Close()
-	}
-	return nil
 }

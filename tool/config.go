@@ -9,37 +9,47 @@ import (
 )
 
 var (
-	DefaultConfigPath    = "config.yaml"
+	ConfigPath           = "config.yaml" // be aware that it can be changed, default to ./config.yaml
 	CurrentConfig        AppConfig
 	ProgramCurrentConfig ProgramConfig
 )
 
+// FavoriteDeviceEntry represents a favorite device with only fingerprint and alias
+type FavoriteDeviceEntry struct {
+	Fingerprint string `yaml:"fingerprint" json:"fingerprint"`
+	Alias       string `yaml:"alias" json:"alias"`
+}
+
 type AppConfig struct {
-	Alias       string `yaml:"alias"`
-	Version     string `yaml:"version"`
-	DeviceModel string `yaml:"deviceModel"`
-	DeviceType  string `yaml:"deviceType"`
-	Fingerprint string `yaml:"fingerprint"`
-	Port        int    `yaml:"port"`
-	Protocol    string `yaml:"protocol"`
-	Download    bool   `yaml:"download"`
-	Announce    bool   `yaml:"announce"`
-	CertPEM     string `yaml:"certPEM,omitempty"`
-	KeyPEM      string `yaml:"keyPEM,omitempty"`
+	Alias                 string                `yaml:"alias"`
+	Version               string                `yaml:"version"`
+	DeviceModel           string                `yaml:"deviceModel"`
+	DeviceType            string                `yaml:"deviceType"`
+	Fingerprint           string                `yaml:"fingerprint"`
+	Port                  int                   `yaml:"port"`
+	Protocol              string                `yaml:"protocol"`
+	Download              bool                  `yaml:"download"`
+	Announce              bool                  `yaml:"announce"`
+	CertPEM               string                `yaml:"certPEM,omitempty"`
+	KeyPEM                string                `yaml:"keyPEM,omitempty"`
+	AutoSaveFromFavorites bool                  `yaml:"autoSaveFromFavorites,omitempty"`
+	FavoriteDevices       []FavoriteDeviceEntry `yaml:"favoriteDevices,omitempty"`
 }
 
 type ProgramConfig struct {
-	Pin      string `yaml:"pin"`
-	AutoSave bool   `yaml:"autoSave"`
+	Pin                   string `yaml:"pin"`
+	AutoSave              bool   `yaml:"autoSave"`
+	AutoSaveFromFavorites bool   `yaml:"autoSaveFromFavorites"`
 }
 
 func init() {
 	ProgramCurrentConfig = DefaultProgramConfig()
 }
 
-func SetProgramConfigStatus(pin string, autoSave bool) {
+func SetProgramConfigStatus(pin string, autoSave bool, autoSaveFromFavorites bool) {
 	ProgramCurrentConfig.Pin = pin
 	ProgramCurrentConfig.AutoSave = autoSave
+	ProgramCurrentConfig.AutoSaveFromFavorites = autoSaveFromFavorites
 }
 
 func GetProgramConfigStatus() ProgramConfig {
@@ -49,22 +59,25 @@ func GetProgramConfigStatus() ProgramConfig {
 // this save to memory , no file provided.
 func DefaultProgramConfig() ProgramConfig {
 	return ProgramConfig{
-		Pin:      "",
-		AutoSave: true,
+		Pin:                   "",
+		AutoSave:              true,
+		AutoSaveFromFavorites: false,
 	}
 }
 
 func defaultConfig() AppConfig {
 	return AppConfig{
-		Alias:       NameGenerator(), // so I change it, use official name generator. :Ciallo~
-		Version:     "2.0",           // Protocol Version: maybe(
-		DeviceModel: "steamdeck",     // you can change it if you prefer.
-		DeviceType:  "headless",      // maybe you can change it, I promise it will not burn others machine:(
-		Fingerprint: "",              // will be set based on protocol
-		Port:        53317,           // default , in normal cases you dont need to change it.
-		Protocol:    "https",         // ENCRYPTION is very important, I dont mind you to switch to http if you are in your home or safe network.
-		Download:    false,           // document said that  default is false, i dont know how to use it, so make it default.
-		Announce:    true,
+		Alias:                 NameGenerator(), // so I change it, use official name generator. :Ciallo~
+		Version:               "2.0",           // Protocol Version: maybe(
+		DeviceModel:           "steamdeck",     // you can change it if you prefer.
+		DeviceType:            "headless",      // maybe you can change it, I promise it will not burn others machine:(
+		Fingerprint:           "",              // will be set based on protocol
+		Port:                  53317,           // default , in normal cases you dont need to change it.
+		Protocol:              "https",         // ENCRYPTION is very important, I dont mind you to switch to http if you are in your home or safe network.
+		Download:              false,           // document said that  default is false, i dont know how to use it, so make it default.
+		Announce:              true,
+		AutoSaveFromFavorites: false,
+		FavoriteDevices:       []FavoriteDeviceEntry{},
 	}
 }
 
@@ -76,8 +89,10 @@ func generateRandomFingerprintForConfig() string {
 
 func LoadConfig(path string) (AppConfig, error) {
 	if path == "" {
-		path = DefaultConfigPath
+		path = ConfigPath
 	}
+	// Update DefaultConfigPath so it can be used for saving favorites later
+	ConfigPath = path
 
 	cfg := defaultConfig()
 	configChanged := false
@@ -94,6 +109,7 @@ func LoadConfig(path string) (AppConfig, error) {
 			}
 			DefaultLogger.Infof("Created new config file with fingerprint and certificate")
 			CurrentConfig = cfg
+			ProgramCurrentConfig.AutoSaveFromFavorites = cfg.AutoSaveFromFavorites
 			return cfg, nil
 		}
 		return cfg, fmt.Errorf("failed to read config file: %v", err)
@@ -143,6 +159,7 @@ func LoadConfig(path string) (AppConfig, error) {
 	}
 
 	CurrentConfig = cfg
+	ProgramCurrentConfig.AutoSaveFromFavorites = cfg.AutoSaveFromFavorites
 	return cfg, nil
 }
 
