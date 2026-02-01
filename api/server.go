@@ -109,15 +109,15 @@ func (s *Server) setupRoutes() *gin.Engine {
 	}
 	self := engine.Group("/api/self/v1", middlewares.OnlyAllowLocal)
 	{
-		self.GET("/get-network-info", controllers.UserGetNetworkInfo) // Get local network info with IP and segment number
-		self.GET("/scan-current", controllers.UserScanCurrent)        // Get current scanned devices
-		self.GET("/scan-now", controllers.UserScanNow)                // Trigger immediate scan based on current config
-		self.POST("/prepare-upload", controllers.UserPrepareUpload)   // Prepare upload endpoint
-		self.POST("/upload", controllers.UserUpload)                  // Actual upload endpoint
-		self.POST("/upload-batch", controllers.UserUploadBatch)       // Batch upload endpoint (supports file:/// protocol)
-		self.GET("/confirm-recv", controllers.UserConfirmRecv)          // Confirm recv endpoint
+		self.GET("/get-network-info", controllers.UserGetNetworkInfo)  // Get local network info with IP and segment number
+		self.GET("/scan-current", controllers.UserScanCurrent)         // Get current scanned devices
+		self.GET("/scan-now", controllers.UserScanNow)                 // Trigger immediate scan based on current config
+		self.POST("/prepare-upload", controllers.UserPrepareUpload)    // Prepare upload endpoint
+		self.POST("/upload", controllers.UserUpload)                   // Actual upload endpoint
+		self.POST("/upload-batch", controllers.UserUploadBatch)        // Batch upload endpoint (supports file:/// protocol)
+		self.GET("/confirm-recv", controllers.UserConfirmRecv)         // Confirm recv endpoint
 		self.GET("/confirm-download", controllers.UserConfirmDownload) // Confirm download endpoint
-		self.POST("/cancel", controllers.UserCancelUpload)            // Cancel upload endpoint (sender side)
+		self.POST("/cancel", controllers.UserCancelUpload)             // Cancel upload endpoint (sender side)
 		self.GET("/get-image", controllers.UserGetImage)
 		self.GET("/favorites", controllers.UserFavoritesList)                     // List favorite devices
 		self.POST("/favorites", controllers.UserFavoritesAdd)                     // Add a favorite device
@@ -129,7 +129,7 @@ func (s *Server) setupRoutes() *gin.Engine {
 
 	// Serve Next.js static export for download page at root (when Download enabled and web/out exists)
 	if selfDevice := models.GetSelfDevice(); selfDevice != nil && selfDevice.Download {
-		indexPage := filepath.Join(WebOutPath, "index.html")
+		indexPage := filepath.Join(tool.GetRunPositionDir(), WebOutPath, "index.html")
 		if _, err := os.Stat(indexPage); err == nil {
 			engine.StaticFile("/", indexPage)
 			nextStatic := filepath.Join(WebOutPath, "_next")
