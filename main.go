@@ -11,12 +11,14 @@ import (
 	"github.com/moyoez/localsend-base-protocol-golang/types"
 )
 
-func main() {
-	cfg := tool.SetFlags()
-	appCfg, err := tool.LoadConfig(cfg.UseConfigPath)
-	if err != nil {
-		tool.DefaultLogger.Fatalf("%v", err)
-	}
+// baseConfig
+type BaseConfig struct {
+	Protocol        string
+	DownloadEnabled bool
+	ScanTimeout     int
+}
+
+func applyBoardcastFromFlags(cfg tool.Config) {
 	if cfg.UseMultcastAddress != "" {
 		boardcast.SetMultcastAddress(cfg.UseMultcastAddress)
 	}
@@ -26,11 +28,20 @@ func main() {
 	if cfg.UseReferNetworkInterface != "" {
 		boardcast.SetReferNetworkInterface(cfg.UseReferNetworkInterface)
 	}
+}
+
+func applyAPIFromFlags(cfg tool.Config) {
 	if cfg.UseDefaultUploadFolder != "" {
-		api.DefaultUploadFolder = cfg.UseDefaultUploadFolder
 		api.SetDefaultUploadFolder(cfg.UseDefaultUploadFolder)
 	}
 	api.SetDoNotMakeSessionFolder(cfg.DoNotMakeSessionFolder)
+	if cfg.UseWebOutPath != "" {
+		api.WebOutPath = cfg.UseWebOutPath
+	}
+}
+
+// mergeAppConfig applies CLI overrides to appCfg, sets notify and program config, returns merged values.
+func mergeAppConfig(cfg tool.Config, appCfg *tool.AppConfig) BaseConfig {
 	if cfg.UseAlias != "" {
 		appCfg.Alias = cfg.UseAlias
 	}
@@ -39,28 +50,29 @@ func main() {
 	} else {
 		appCfg.Protocol = "https"
 	}
-
 	if cfg.SkipNotify {
 		notify.UseNotify = false
 	}
-
-	// Determine autoSaveFromFavorites: flag overrides config if set
 	autoSaveFromFavorites := appCfg.AutoSaveFromFavorites
 	if cfg.UseAutoSaveFromFavorites {
 		autoSaveFromFavorites = true
 	}
 	tool.SetProgramConfigStatus(cfg.UsePin, cfg.UseAutoSave, autoSaveFromFavorites)
 
-	// initialize logger
-	tool.InitLogger()
-
-	// Download API: config or flag
 	downloadEnabled := appCfg.Download
 	if cfg.UseDownload {
 		downloadEnabled = true
 	}
 
-	message := &types.VersionMessage{
+	return BaseConfig{
+		Protocol:        appCfg.Protocol,
+		DownloadEnabled: downloadEnabled,
+		ScanTimeout:     cfg.ScanTimeout,
+	}
+}
+
+func buildVersionMessages(appCfg *tool.AppConfig, downloadEnabled bool) (*types.VersionMessage, *types.VersionMessageHTTP) {
+	msg := &types.VersionMessage{
 		Alias:       appCfg.Alias,
 		Version:     appCfg.Version,
 		DeviceModel: appCfg.DeviceModel,
@@ -71,38 +83,7 @@ func main() {
 		Download:    downloadEnabled,
 		Announce:    true,
 	}
-	api.SetSelfDevice(message)
-
-	if cfg.UseWebOutPath != "" {
-		api.WebOutPath = cfg.UseWebOutPath
-	}
-	if cfg.Log == "" {
-		tool.DefaultLogger.SetLevel(log.DebugLevel)
-	} else {
-		switch strings.ToLower(cfg.Log) {
-		case "dev":
-			tool.DefaultLogger.SetLevel(log.DebugLevel)
-		case "prod":
-			tool.DefaultLogger.SetLevel(log.InfoLevel)
-		case "none":
-			tool.DefaultLogger.SetLevel(log.FatalLevel)
-		default:
-			tool.DefaultLogger.Warnf("Unknown log mode %q, using debug level", cfg.Log)
-			tool.DefaultLogger.SetLevel(log.DebugLevel)
-		}
-	}
-
-	// due to protocol request, need to 53317 by default
-	apiServer := api.NewServerWithConfig(53317, appCfg.Protocol, cfg.UseConfigPath)
-	go func() {
-		if err := apiServer.Start(); err != nil {
-			tool.DefaultLogger.Fatalf("API server startup failed: %v", err)
-			panic(err)
-		}
-	}()
-
-	// Prepare HTTP version message for scan config
-	httpMessage := &types.VersionMessageHTTP{
+	httpMsg := &types.VersionMessageHTTP{
 		Alias:       appCfg.Alias,
 		Version:     appCfg.Version,
 		DeviceModel: appCfg.DeviceModel,
@@ -110,32 +91,80 @@ func main() {
 		Fingerprint: appCfg.Fingerprint,
 		Port:        appCfg.Port,
 		Protocol:    appCfg.Protocol,
-		Download:    appCfg.Download,
+		Download:    downloadEnabled,
 	}
+	return msg, httpMsg
+}
 
-	// Set scan timeout (default 500 seconds)
-	scanTimeout := cfg.ScanTimeout
+func setLogLevel(cfg tool.Config) {
+	if cfg.Log == "" {
+		tool.DefaultLogger.SetLevel(log.DebugLevel)
+		return
+	}
+	switch strings.ToLower(cfg.Log) {
+	case "dev":
+		tool.DefaultLogger.SetLevel(log.DebugLevel)
+	case "prod":
+		tool.DefaultLogger.SetLevel(log.InfoLevel)
+	case "none":
+		tool.DefaultLogger.SetLevel(log.FatalLevel)
+	default:
+		tool.DefaultLogger.Warnf("Unknown log mode %q, using debug level", cfg.Log)
+		tool.DefaultLogger.SetLevel(log.DebugLevel)
+	}
+}
 
+// startAPIServer starts the API server in a goroutine (default port 53317 per protocol).
+func startAPIServer(port int, protocol, configPath string) {
+	apiServer := api.NewServerWithConfig(port, protocol, configPath)
+	go func() {
+		if err := apiServer.Start(); err != nil {
+			tool.DefaultLogger.Fatalf("API server startup failed: %v", err)
+			panic(err)
+		}
+	}()
+}
+
+func startScanMode(cfg tool.Config, message *types.VersionMessage, httpMessage *types.VersionMessageHTTP, scanTimeout int) {
+	// Set scan config for scan-now API
 	switch {
 	case cfg.UseLegacyMode:
 		tool.DefaultLogger.Info("Using Legacy Mode: HTTP scanning (scanning every 30 seconds)")
-		// Set scan config for scan-now API
 		boardcast.SetScanConfig(boardcast.ScanModeHTTP, message, httpMessage, scanTimeout)
 		go boardcast.ListenMulticastUsingHTTPWithTimeout(httpMessage, scanTimeout)
 	case cfg.UseMixedScan:
 		tool.DefaultLogger.Info("Using Mixed Scan Mode: UDP and HTTP scanning")
-		// Set scan config for scan-now API
 		boardcast.SetScanConfig(boardcast.ScanModeMixed, message, httpMessage, scanTimeout)
 		go boardcast.ListenMulticastUsingUDP(message)
 		go boardcast.SendMulticastUsingUDPWithTimeout(message, scanTimeout)
 		go boardcast.ListenMulticastUsingHTTPWithTimeout(httpMessage, scanTimeout)
 	default:
 		tool.DefaultLogger.Info("Using UDP multicast mode")
-		// Set scan config for scan-now API
 		boardcast.SetScanConfig(boardcast.ScanModeUDP, message, httpMessage, scanTimeout)
 		go boardcast.ListenMulticastUsingUDP(message)
 		go boardcast.SendMulticastUsingUDPWithTimeout(message, scanTimeout)
 	}
+}
+
+func main() {
+	cfg := tool.SetFlags()
+	appCfg, err := tool.LoadConfig(cfg.UseConfigPath)
+	if err != nil {
+		tool.DefaultLogger.Fatalf("%v", err)
+	}
+
+	applyBoardcastFromFlags(cfg)
+	applyAPIFromFlags(cfg)
+	base := mergeAppConfig(cfg, &appCfg)
+
+	message, httpMessage := buildVersionMessages(&appCfg, base.DownloadEnabled)
+	api.SetSelfDevice(message)
+
+	tool.InitLogger()
+	setLogLevel(cfg)
+
+	startAPIServer(53317, base.Protocol, cfg.UseConfigPath)
+	startScanMode(cfg, message, httpMessage, base.ScanTimeout)
 
 	select {}
 }
