@@ -92,10 +92,8 @@ func main() {
 		}
 	}
 
-	handler := api.NewDefaultHandler()
-	// Determine config path for TLS certificate storage
 	// due to protocol request, need to 53317 by default
-	apiServer := api.NewServerWithConfig(53317, appCfg.Protocol, handler, cfg.UseConfigPath)
+	apiServer := api.NewServerWithConfig(53317, appCfg.Protocol, cfg.UseConfigPath)
 	go func() {
 		if err := apiServer.Start(); err != nil {
 			tool.DefaultLogger.Fatalf("API server startup failed: %v", err)

@@ -26,7 +26,6 @@ var WebOutPath = "web/out"
 type Server struct {
 	port       int
 	protocol   string
-	handler    *Handler
 	engine     *gin.Engine
 	server     *http.Server
 	configPath string // path to config file for TLS cert storage
@@ -34,14 +33,13 @@ type Server struct {
 }
 
 var (
-	DefaultConfigPath        = "config.yaml"
-	DefaultUploadFolder      = "uploads"
-	DoNotMakeSessionFolder   bool // if true, save under upload folder only; same filename → name-2.ext, name-3.ext, ...
+	DefaultConfigPath   = "config.yaml"
+	DefaultUploadFolder = "uploads"
 )
 
 // SetDoNotMakeSessionFolder sets whether to skip session subfolder and use numbered filenames when same name exists.
 func SetDoNotMakeSessionFolder(v bool) {
-	DoNotMakeSessionFolder = v
+	models.DoNotMakeSessionFolder = v
 }
 
 // SetSelfDevice sets the local device info used for user-side scanning.
@@ -60,17 +58,13 @@ func init() {
 }
 
 // NewServerWithConfig creates a new API server instance with custom config path
-func NewServerWithConfig(port int, protocol string, handler *Handler, configPath string) *Server {
-	if handler == nil {
-		handler = &Handler{}
-	}
+func NewServerWithConfig(port int, protocol string, configPath string) *Server {
 	if configPath == "" {
 		configPath = DefaultConfigPath
 	}
 	return &Server{
 		port:       port,
 		protocol:   protocol,
-		handler:    handler,
 		configPath: configPath,
 	}
 }
@@ -86,9 +80,9 @@ func (s *Server) setupRoutes() *gin.Engine {
 	engine.Use(gin.Recovery())
 
 	// Initialize controllers
-	registerCtrl := controllers.NewRegisterController(s.handler)
-	uploadCtrl := controllers.NewUploadController(s.handler)
-	cancelCtrl := controllers.NewCancelController(s.handler)
+	registerCtrl := controllers.NewRegisterController()
+	uploadCtrl := controllers.NewUploadController()
+	cancelCtrl := controllers.NewCancelController()
 
 	// Register API endpoints
 	v2 := engine.Group("/api/localsend/v2")

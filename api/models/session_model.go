@@ -25,8 +25,9 @@ type SessionUploadStats struct {
 }
 
 var (
-	uploadSessionMu     sync.RWMutex
-	DefaultUploadFolder = "uploads"
+	uploadSessionMu       sync.RWMutex
+	DefaultUploadFolder   = "uploads"
+	DoNotMakeSessionFolder bool // if true, save under upload folder only; same filename -> name-2.ext, name-3.ext, ...
 	uploadSessions      = ttlworker.NewCache[string, map[string]types.FileInfo](tool.DefaultTTL)
 	uploadValidated     = ttlworker.NewCache[string, bool](tool.DefaultTTL)
 	confirmRecvChans    = ttlworker.NewCache[string, chan types.ConfirmResult](tool.DefaultTTL)
