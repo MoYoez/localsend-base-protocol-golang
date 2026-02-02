@@ -28,6 +28,27 @@ type Handler struct {
 // Ensure Handler implements types.HandlerInterface
 var _ types.HandlerInterface = (*Handler)(nil)
 
+// nextAvailablePath returns the first path under dir that does not exist, using fileName
+// and if it exists, trying base-2.ext, base-3.ext, ... (e.g. txt.txt -> txt-2.txt, txt-3.txt).
+func nextAvailablePath(dir, fileName string) string {
+	ext := filepath.Ext(fileName)
+	base := strings.TrimSuffix(filepath.Base(fileName), ext)
+	if base == "" {
+		base = fileName
+		ext = ""
+	}
+	try := filepath.Join(dir, fileName)
+	if _, err := os.Stat(try); os.IsNotExist(err) {
+		return try
+	}
+	for n := 2; ; n++ {
+		try = filepath.Join(dir, fmt.Sprintf("%s-%d%s", base, n, ext))
+		if _, err := os.Stat(try); os.IsNotExist(err) {
+			return try
+		}
+	}
+}
+
 // copyWithContext copies from src to dst while respecting context cancellation.
 // It checks the context periodically during the copy operation.
 func copyWithContext(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
@@ -232,7 +253,11 @@ func NewDefaultHandler() *Handler {
 				return fmt.Errorf("file metadata not found")
 			}
 
-			if err := os.MkdirAll(filepath.Join(models.DefaultUploadFolder, sessionId), 0o755); err != nil {
+			uploadDir := models.DefaultUploadFolder
+			if !DoNotMakeSessionFolder {
+				uploadDir = filepath.Join(models.DefaultUploadFolder, sessionId)
+			}
+			if err := os.MkdirAll(uploadDir, 0o755); err != nil {
 				return fmt.Errorf("create upload dir failed: %w", err)
 			}
 
@@ -241,7 +266,10 @@ func NewDefaultHandler() *Handler {
 				fileName = fileId
 			}
 			fileName = filepath.Base(fileName)
-			targetPath := filepath.Join(models.DefaultUploadFolder, sessionId, fileName)
+			targetPath := filepath.Join(uploadDir, fileName)
+			if DoNotMakeSessionFolder {
+				targetPath = nextAvailablePath(uploadDir, fileName)
+			}
 
 			file, err := os.Create(targetPath)
 			if err != nil {

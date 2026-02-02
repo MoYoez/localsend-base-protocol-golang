@@ -21,6 +21,8 @@ type Config struct {
 	ScanTimeout              int    // scan timeout in seconds, default 500. After timeout, auto scan will stop.
 	UseDownload              bool   // if true, enable download API (prepare-download, download, download page)
 	UseWebOutPath            string // path to Next.js static export output (default: web/out)
+	DoNotMakeSessionFolder   bool   // if true, do not make any session folder, if meet same files
+
 }
 
 // SetFlags parses CLI flags and returns the override config.
@@ -43,6 +45,7 @@ func SetFlags() Config {
 	flag.IntVar(&cfg.ScanTimeout, "scanTimeout", 500, "scan timeout in seconds, default 500. After timeout, auto scan will stop. Set to 0 to disable timeout.")
 	flag.BoolVar(&cfg.UseDownload, "useDownload", false, "if true, enable download API (prepare-download, download, download page)")
 	flag.StringVar(&cfg.UseWebOutPath, "webOutPath", "./web/out", "path to Next.js static export output for download page")
+	flag.BoolVar(&cfg.DoNotMakeSessionFolder, "doNotMakeSessionFolder", false, "if true, do not create session subfolder; when file name exists, save as name-2.ext, name-3.ext, ...")
 	flag.Parse()
 	return cfg
 }

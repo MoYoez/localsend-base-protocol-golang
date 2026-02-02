@@ -34,9 +34,15 @@ type Server struct {
 }
 
 var (
-	DefaultConfigPath   = "config.yaml"
-	DefaultUploadFolder = "uploads"
+	DefaultConfigPath        = "config.yaml"
+	DefaultUploadFolder      = "uploads"
+	DoNotMakeSessionFolder   bool // if true, save under upload folder only; same filename → name-2.ext, name-3.ext, ...
 )
+
+// SetDoNotMakeSessionFolder sets whether to skip session subfolder and use numbered filenames when same name exists.
+func SetDoNotMakeSessionFolder(v bool) {
+	DoNotMakeSessionFolder = v
+}
 
 // SetSelfDevice sets the local device info used for user-side scanning.
 func SetSelfDevice(device *types.VersionMessage) {

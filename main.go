@@ -30,6 +30,7 @@ func main() {
 		api.DefaultUploadFolder = cfg.UseDefaultUploadFolder
 		api.SetDefaultUploadFolder(cfg.UseDefaultUploadFolder)
 	}
+	api.SetDoNotMakeSessionFolder(cfg.DoNotMakeSessionFolder)
 	if cfg.UseAlias != "" {
 		appCfg.Alias = cfg.UseAlias
 	}
