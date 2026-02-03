@@ -88,9 +88,11 @@ func (ctrl *UploadController) HandlePrepareUpload(c *gin.Context) {
 			tool.DefaultLogger.Infof("[Notify] Sending upload_start notification: sessionId=%s, totalFiles=%d",
 				sessionId, totalFiles)
 			if err := notify.SendUploadNotification(types.NotifyTypeUploadStart, sessionId, "", map[string]any{
-				"totalFiles": totalFiles,
-				"totalSize":  totalSize,
-				"files":      files,
+				"totalFiles":            totalFiles,
+				"totalSize":            totalSize,
+				"files":                files,
+				"doNotMakeSessionFolder": models.DoNotMakeSessionFolder,
+				"uploadFolder":         models.DefaultUploadFolder,
 			}); err != nil {
 				tool.DefaultLogger.Errorf("[Notify] Failed to send upload_start notification: %v", err)
 			} else {
@@ -171,9 +173,11 @@ func (ctrl *UploadController) HandlePrepareV1Upload(c *gin.Context) {
 			tool.DefaultLogger.Infof("[V1 Notify] Sending upload_start notification: sessionId=%s, totalFiles=%d",
 				sessionId, totalFiles)
 			if err := notify.SendUploadNotification(types.NotifyTypeUploadStart, sessionId, "", map[string]any{
-				"totalFiles": totalFiles,
-				"totalSize":  totalSize,
-				"files":      files,
+				"totalFiles":            totalFiles,
+				"totalSize":            totalSize,
+				"files":                files,
+				"doNotMakeSessionFolder": models.DoNotMakeSessionFolder,
+				"uploadFolder":         models.DefaultUploadFolder,
 			}); err != nil {
 				tool.DefaultLogger.Errorf("[V1 Notify] Failed to send upload_start notification: %v", err)
 			} else {
@@ -226,16 +230,20 @@ func (ctrl *UploadController) HandleUploadV1Upload(c *gin.Context) {
 		// Send notification when all files are processed (even if some failed)
 		if isLast && stats != nil {
 			go func(sid string, stats *types.SessionUploadStats, remoteAddr string) {
-				// remove session
+				savePaths := models.GetSessionSavePaths(sid)
 				models.RemoveV1Session(remoteAddr)
 				tool.DefaultLogger.Infof("[V1 Notify] Sending upload_end notification (all files processed): sessionId=%s, success=%d, failed=%d",
 					sid, stats.SuccessFiles, stats.FailedFiles)
-				if err := notify.SendUploadNotification(types.NotifyTypeUploadEnd, sid, "", map[string]any{
-					"totalFiles":    stats.TotalFiles,
-					"successFiles":  stats.SuccessFiles,
-					"failedFiles":   stats.FailedFiles,
-					"failedFileIds": stats.FailedFileIds,
-				}); err != nil {
+				data := map[string]any{
+					"totalFiles":            stats.TotalFiles,
+					"successFiles":          stats.SuccessFiles,
+					"failedFiles":           stats.FailedFiles,
+					"failedFileIds":         stats.FailedFileIds,
+					"doNotMakeSessionFolder": models.DoNotMakeSessionFolder,
+					"uploadFolder":          models.DefaultUploadFolder,
+					"savePaths":             savePaths,
+				}
+				if err := notify.SendUploadNotification(types.NotifyTypeUploadEnd, sid, "", data); err != nil {
 					tool.DefaultLogger.Errorf("[V1 Notify] Failed to send upload_end notification: %v", err)
 				}
 
@@ -270,16 +278,26 @@ func (ctrl *UploadController) HandleUploadV1Upload(c *gin.Context) {
 
 	if isLast && stats != nil {
 		go func(sid, fid string, fileInfo types.FileInfo, stats *types.SessionUploadStats) {
+			savePaths := models.GetSessionSavePaths(sid)
+			var savePath string
+			if savePaths != nil {
+				savePath = savePaths[fid]
+			}
 			tool.DefaultLogger.Infof("[V1 Notify] Sending upload_end notification (all files processed): sessionId=%s, success=%d, failed=%d",
 				sid, stats.SuccessFiles, stats.FailedFiles)
-			if err := notify.SendUploadNotification(types.NotifyTypeUploadEnd, sid, fid, map[string]any{
-				"fileName":      fileInfo.FileName,
-				"fileType":      fileInfo.FileType,
-				"totalFiles":    stats.TotalFiles,
-				"successFiles":  stats.SuccessFiles,
-				"failedFiles":   stats.FailedFiles,
-				"failedFileIds": stats.FailedFileIds,
-			}); err != nil {
+			data := map[string]any{
+				"fileName":               fileInfo.FileName,
+				"fileType":                fileInfo.FileType,
+				"totalFiles":              stats.TotalFiles,
+				"successFiles":            stats.SuccessFiles,
+				"failedFiles":             stats.FailedFiles,
+				"failedFileIds":           stats.FailedFileIds,
+				"doNotMakeSessionFolder":  models.DoNotMakeSessionFolder,
+				"uploadFolder":            models.DefaultUploadFolder,
+				"savePath":                savePath,
+				"savePaths":               savePaths,
+			}
+			if err := notify.SendUploadNotification(types.NotifyTypeUploadEnd, sid, fid, data); err != nil {
 				tool.DefaultLogger.Errorf("[V1 Notify] Failed to send upload_end notification: %v", err)
 			}
 			models.CleanupSessionStats(sid)
@@ -326,14 +344,19 @@ func (ctrl *UploadController) HandleUpload(c *gin.Context) {
 
 		if isLast && stats != nil {
 			go func(sid string, stats *types.SessionUploadStats) {
+				savePaths := models.GetSessionSavePaths(sid)
 				tool.DefaultLogger.Infof("[Notify] Sending upload_end notification (all files processed): sessionId=%s, success=%d, failed=%d",
 					sid, stats.SuccessFiles, stats.FailedFiles)
-				if err := notify.SendUploadNotification(types.NotifyTypeUploadEnd, sid, "", map[string]any{
-					"totalFiles":    stats.TotalFiles,
-					"successFiles":  stats.SuccessFiles,
-					"failedFiles":   stats.FailedFiles,
-					"failedFileIds": stats.FailedFileIds,
-				}); err != nil {
+				data := map[string]any{
+					"totalFiles":            stats.TotalFiles,
+					"successFiles":          stats.SuccessFiles,
+					"failedFiles":           stats.FailedFiles,
+					"failedFileIds":         stats.FailedFileIds,
+					"doNotMakeSessionFolder": models.DoNotMakeSessionFolder,
+					"uploadFolder":          models.DefaultUploadFolder,
+					"savePaths":             savePaths,
+				}
+				if err := notify.SendUploadNotification(types.NotifyTypeUploadEnd, sid, "", data); err != nil {
 					tool.DefaultLogger.Errorf("[Notify] Failed to send upload_end notification: %v", err)
 				}
 				models.CleanupSessionStats(sid)
@@ -367,16 +390,26 @@ func (ctrl *UploadController) HandleUpload(c *gin.Context) {
 
 	if isLast && stats != nil {
 		go func(sid, fid string, fileInfo types.FileInfo, stats *types.SessionUploadStats) {
+			savePaths := models.GetSessionSavePaths(sid)
+			var savePath string
+			if savePaths != nil {
+				savePath = savePaths[fid]
+			}
 			tool.DefaultLogger.Infof("[Notify] Sending upload_end notification (all files processed): sessionId=%s, success=%d, failed=%d",
 				sid, stats.SuccessFiles, stats.FailedFiles)
-			if err := notify.SendUploadNotification(types.NotifyTypeUploadEnd, sid, fid, map[string]any{
-				"fileName":      fileInfo.FileName,
-				"fileType":      fileInfo.FileType,
-				"totalFiles":    stats.TotalFiles,
-				"successFiles":  stats.SuccessFiles,
-				"failedFiles":   stats.FailedFiles,
-				"failedFileIds": stats.FailedFileIds,
-			}); err != nil {
+			data := map[string]any{
+				"fileName":               fileInfo.FileName,
+				"fileType":                fileInfo.FileType,
+				"totalFiles":              stats.TotalFiles,
+				"successFiles":            stats.SuccessFiles,
+				"failedFiles":             stats.FailedFiles,
+				"failedFileIds":           stats.FailedFileIds,
+				"doNotMakeSessionFolder":  models.DoNotMakeSessionFolder,
+				"uploadFolder":            models.DefaultUploadFolder,
+				"savePath":                savePath,
+				"savePaths":               savePaths,
+			}
+			if err := notify.SendUploadNotification(types.NotifyTypeUploadEnd, sid, fid, data); err != nil {
 				tool.DefaultLogger.Errorf("[Notify] Failed to send upload_end notification: %v", err)
 			} else {
 				tool.DefaultLogger.Infof("[Notify] Successfully sent upload_end notification for session: %s", sid)

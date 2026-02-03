@@ -194,6 +194,7 @@ func DefaultOnUpload(sessionId, fileId, token string, data io.Reader, remoteAddr
 		}
 	}
 
+	models.SetFileSavePath(sessionId, fileId, targetPath)
 	tool.DefaultLogger.Infof("Upload saved: sessionId=%s, fileId=%s, path=%s", sessionId, fileId, targetPath)
 	return nil
 }

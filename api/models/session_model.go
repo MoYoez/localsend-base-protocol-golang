@@ -22,6 +22,8 @@ var (
 	sessionContexts = ttlworker.NewCache[string, *types.SessionContext](tool.DefaultTTL)
 	// uploadStats tracks success/failure counts per session
 	uploadStats = ttlworker.NewCache[string, *types.SessionUploadStats](tool.DefaultTTL)
+	// fileSavePaths stores actual save path per (sessionId, fileId) for notifications
+	fileSavePaths = ttlworker.NewCache[string, map[string]string](tool.DefaultTTL)
 )
 
 func CacheUploadSession(sessionId string, files map[string]types.FileInfo) {
@@ -120,6 +122,43 @@ func GetSessionStats(sessionId string) *types.SessionUploadStats {
 	return uploadStats.Get(sessionId)
 }
 
+// SetFileSavePath stores the actual save path for a file (used by notifications when DoNotMakeSessionFolder or name collision).
+func SetFileSavePath(sessionId, fileId, savePath string) {
+	uploadSessionMu.Lock()
+	defer uploadSessionMu.Unlock()
+	m := fileSavePaths.Get(sessionId)
+	if m == nil {
+		m = make(map[string]string)
+		fileSavePaths.Set(sessionId, m)
+	}
+	m[fileId] = savePath
+}
+
+// GetFileSavePath returns the stored save path for a file, if any.
+func GetFileSavePath(sessionId, fileId string) (string, bool) {
+	uploadSessionMu.RLock()
+	defer uploadSessionMu.RUnlock()
+	m := fileSavePaths.Get(sessionId)
+	if m == nil {
+		return "", false
+	}
+	path, ok := m[fileId]
+	return path, ok
+}
+
+// GetSessionSavePaths returns a copy of all fileId -> savePath for the session (for upload_end notification).
+func GetSessionSavePaths(sessionId string) map[string]string {
+	uploadSessionMu.RLock()
+	defer uploadSessionMu.RUnlock()
+	m := fileSavePaths.Get(sessionId)
+	if len(m) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(m))
+	maps.Copy(out, m)
+	return out
+}
+
 // CleanupSessionStats removes the upload statistics for a session
 func CleanupSessionStats(sessionId string) {
 	uploadSessionMu.Lock()
@@ -133,6 +172,7 @@ func RemoveUploadSession(sessionId string) {
 	uploadSessions.Delete(sessionId)
 	uploadValidated.Delete(sessionId)
 	confirmRecvChans.Delete(sessionId)
+	fileSavePaths.Delete(sessionId)
 	// Cancel the session context to interrupt ongoing uploads
 	if sessCtx := sessionContexts.Get(sessionId); sessCtx != nil {
 		sessCtx.Cancel()
