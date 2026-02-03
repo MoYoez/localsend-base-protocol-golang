@@ -312,7 +312,11 @@ func UserUpload(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, tool.FastReturnError("Failed to read file data: "+err.Error()))
 			return
 		}
-		defer c.Request.Body.Close()
+		defer func() {
+			if err := c.Request.Body.Close(); err != nil {
+				tool.DefaultLogger.Errorf("Failed to close request body: %v", err)
+			}
+		}()
 		fileData = data
 	}
 
