@@ -160,7 +160,7 @@ func DefaultOnUpload(sessionId, fileId, token string, data io.Reader, remoteAddr
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
-			tool.DefaultLogger.Errorf("Failed to close file: %v", err)
+			tool.DefaultLogger.Warnf("Failed to close file: %v", err)
 		}
 	}()
 
