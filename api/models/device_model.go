@@ -3,7 +3,7 @@ package models
 import (
 	"sync"
 
-	"github.com/moyoez/localsend-base-protocol-golang/types"
+	"github.com/moyoez/localsend-go/types"
 )
 
 var (

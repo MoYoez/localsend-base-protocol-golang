@@ -13,6 +13,8 @@ import (
 	"math/big"
 	"math/rand"
 	"time"
+
+	"github.com/moyoez/localsend-go/types"
 )
 
 var (
@@ -22,7 +24,8 @@ var (
 // GetOrCreateFingerprintFromConfig returns the fingerprint based on TLS certificate from config.
 // If certificate exists in config, uses its hash. Otherwise generates cert first and returns its hash.
 // Also updates the config's CertPEM and KeyPEM fields.
-func GetOrCreateFingerprintFromConfig(cfg *AppConfig) string {
+// Work in HTTP Method, if fingerprint existed, do not change it, and keep it here safely.
+func GetOrCreateFingerprintFromConfig(cfg *types.AppConfig) string {
 	// Try to load existing certificate from config
 	if cfg.CertPEM != "" && cfg.KeyPEM != "" {
 		certDER, _, err := loadTLSCertFromPEM(cfg.CertPEM, cfg.KeyPEM)
@@ -61,20 +64,10 @@ func GetOrCreateFingerprintFromConfig(cfg *AppConfig) string {
 	return GenerateTlsSha256Fingerprint
 }
 
-// generateRandomFingerprint generates a random 32-character fingerprint (fallback), for http method.
-func generateRandomFingerprint() string {
-	b := make([]byte, 16)
-	_, err := cryptorand.Read(b)
-	if err != nil {
-		DefaultLogger.Errorf("Failed to generate random fingerprint: %v", err)
-		return generateRandomFingerprint()
-	}
-	return hex.EncodeToString(b)
-}
-
 // GetOrCreateTLSCertFromConfig loads existing TLS certificate from config or generates a new one.
 // Certificate content is stored in config's CertPEM and KeyPEM fields.
-func GetOrCreateTLSCertFromConfig(cfg *AppConfig) (certDER []byte, keyDER []byte, err error) {
+// Always work in tls method.
+func GetOrCreateTLSCertFromConfig(cfg *types.AppConfig) (certDER []byte, keyDER []byte, err error) {
 	// Try to load existing certificate from config
 	if cfg.CertPEM != "" && cfg.KeyPEM != "" {
 		certDER, keyDER, err = loadTLSCertFromPEM(cfg.CertPEM, cfg.KeyPEM)
@@ -107,6 +100,17 @@ func GetOrCreateTLSCertFromConfig(cfg *AppConfig) (certDER []byte, keyDER []byte
 
 	DefaultLogger.Infof("TLS certificate generated and stored in config")
 	return certDER, keyDER, nil
+}
+
+// generateRandomFingerprint generates a random 32-character fingerprint (fallback), for http method.
+func generateRandomFingerprint() string {
+	b := make([]byte, 16)
+	_, err := cryptorand.Read(b)
+	if err != nil {
+		DefaultLogger.Errorf("Failed to generate random fingerprint: %v", err)
+		return generateRandomFingerprint()
+	}
+	return hex.EncodeToString(b)
 }
 
 // loadTLSCertFromPEM loads TLS certificate and key from PEM strings.

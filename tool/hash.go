@@ -16,7 +16,7 @@ func GenerateRandomUUID() string {
 func GenerateShortSessionID() string {
 	b := make([]byte, 4) // 4 bytes = 8 hex chars
 	if _, err := rand.Read(b); err != nil {
-		return uuid.New().String()[:8] // fallback
+		return GenerateRandomUUID()[:8] // fallback
 	}
 	return hex.EncodeToString(b)
 }

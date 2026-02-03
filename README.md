@@ -43,7 +43,7 @@ Actually it used for [decky-localsend](https://github.com/moyoez/decky-localsend
 | `-useLegacyMode`              | bool    | false   | Use legacy HTTP mode to scan devices (scans every 30 seconds)                                |
 | `-useReferNetworkInterface`   | string  | "*"     | Specify the network interface for use (e.g., `"en0"`, `"eth0"`, or `"*"` for all interfaces) |
 | `-usePin`                    | string  | (empty) | Specify a PIN to require for uploads |
-| `-useAutoSave`               | bool    | true    | If false, requires manual confirmation to receive files |
+| `-useAutoSave`               | bool    | false   | If false, requires manual confirmation to receive files |
 | `-useAlias`                    | string  | (empty) | Specify a Alias to shown in net. |
 | `-useHttps`                   | bool    | true    | If true, use https (encrypted); if false, use http (unencrypted). Alias for protocol config. |
 | `-useMixedScan`               | bool    | false   | Use mixed scan mode (both UDP and HTTP for discovery)                                        |
@@ -59,7 +59,7 @@ Actually it used for [decky-localsend](https://github.com/moyoez/decky-localsend
 
 ### TODO
 
-1. (maybe) Website Support, but decky-send make it, so i guess I dont make website for this.
+None Currently.
 
 ### Known BUGS
 

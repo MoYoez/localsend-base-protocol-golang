@@ -11,22 +11,17 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
-	"github.com/moyoez/localsend-base-protocol-golang/api/controllers"
-	"github.com/moyoez/localsend-base-protocol-golang/api/middlewares"
-	"github.com/moyoez/localsend-base-protocol-golang/api/models"
-	"github.com/moyoez/localsend-base-protocol-golang/tool"
-	"github.com/moyoez/localsend-base-protocol-golang/types"
+	"github.com/moyoez/localsend-go/api/controllers"
+	"github.com/moyoez/localsend-go/api/middlewares"
+	"github.com/moyoez/localsend-go/api/models"
+	"github.com/moyoez/localsend-go/tool"
+	"github.com/moyoez/localsend-go/types"
 )
-
-// WebOutPath is the path to the Next.js static export output (web/out)
-// Set via -webOutPath flag or defaults to web/out relative to working directory
-var WebOutPath = "web/out"
 
 // Server represents the HTTP API server for receiving TCP API requests
 type Server struct {
 	port       int
 	protocol   string
-	handler    *Handler
 	engine     *gin.Engine
 	server     *http.Server
 	configPath string // path to config file for TLS cert storage
@@ -36,7 +31,20 @@ type Server struct {
 var (
 	DefaultConfigPath   = "config.yaml"
 	DefaultUploadFolder = "uploads"
+	WebOutPath          = "web/out"
 )
+
+// SetDoNotMakeSessionFolder sets whether to skip session subfolder and use numbered filenames when same name exists.
+func SetDoNotMakeSessionFolder(v bool) {
+	models.DoNotMakeSessionFolder = v
+}
+
+// SetDefaultWebOutPath sets the default web out path for both api and models packages
+func SetDefaultWebOutPath(path string) {
+	if path != "" {
+		WebOutPath = path
+	}
+}
 
 // SetSelfDevice sets the local device info used for user-side scanning.
 func SetSelfDevice(device *types.VersionMessage) {
@@ -45,26 +53,20 @@ func SetSelfDevice(device *types.VersionMessage) {
 
 // SetDefaultUploadFolder sets the default upload folder for both api and models packages
 func SetDefaultUploadFolder(folder string) {
-	DefaultUploadFolder = folder
-	models.DefaultUploadFolder = folder
-}
-
-func init() {
-	models.DefaultUploadFolder = DefaultUploadFolder
+	if folder != "" {
+		DefaultUploadFolder = folder
+		models.DefaultUploadFolder = folder
+	}
 }
 
 // NewServerWithConfig creates a new API server instance with custom config path
-func NewServerWithConfig(port int, protocol string, handler *Handler, configPath string) *Server {
-	if handler == nil {
-		handler = &Handler{}
-	}
+func NewServerWithConfig(port int, protocol string, configPath string) *Server {
 	if configPath == "" {
 		configPath = DefaultConfigPath
 	}
 	return &Server{
 		port:       port,
 		protocol:   protocol,
-		handler:    handler,
 		configPath: configPath,
 	}
 }
@@ -80,9 +82,9 @@ func (s *Server) setupRoutes() *gin.Engine {
 	engine.Use(gin.Recovery())
 
 	// Initialize controllers
-	registerCtrl := controllers.NewRegisterController(s.handler)
-	uploadCtrl := controllers.NewUploadController(s.handler)
-	cancelCtrl := controllers.NewCancelController(s.handler)
+	registerCtrl := controllers.NewRegisterController()
+	uploadCtrl := controllers.NewUploadController()
+	cancelCtrl := controllers.NewCancelController()
 
 	// Register API endpoints
 	v2 := engine.Group("/api/localsend/v2")
@@ -126,6 +128,7 @@ func (s *Server) setupRoutes() *gin.Engine {
 		self.GET("/get-network-interfaces", controllers.UserGetNetworkInterfaces) // Get network interfaces,used same as usergetNetwork Info
 		self.POST("/create-share-session", controllers.UserCreateShareSession)    // Create share session for download API
 		self.DELETE("/close-share-session", controllers.UserCloseShareSession)    // Close share session
+		self.GET("/create-qr-code", controllers.GenerateQRCode)                   // QR code PNG (same params as api.qrserver.com)
 	}
 
 	// Serve Next.js static export for download page at root (when Download enabled and web/out exists)

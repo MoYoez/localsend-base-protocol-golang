@@ -33,8 +33,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setLocaleState(getInitialLocale());
-    setMounted(true);
+    queueMicrotask(() => {
+      setLocaleState(getInitialLocale());
+      setMounted(true);
+    });
   }, []);
 
   useEffect(() => {

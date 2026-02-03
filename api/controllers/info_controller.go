@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/moyoez/localsend-base-protocol-golang/api/models"
-	"github.com/moyoez/localsend-base-protocol-golang/types"
+	"github.com/moyoez/localsend-go/api/models"
+	"github.com/moyoez/localsend-go/types"
 )
 
 // see here https://github.com/localsend/protocol/blob/main/v1.md#22-http-legacy-mode

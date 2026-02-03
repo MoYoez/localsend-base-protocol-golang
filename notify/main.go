@@ -11,7 +11,8 @@ import (
 	"time"
 
 	"github.com/bytedance/sonic"
-	"github.com/moyoez/localsend-base-protocol-golang/tool"
+	"github.com/moyoez/localsend-go/tool"
+	"github.com/moyoez/localsend-go/types"
 )
 
 // Configuration for Unix Domain Socket notification
@@ -19,21 +20,27 @@ var (
 	// DefaultUnixSocketPath is the default Unix socket path for IPC
 	DefaultUnixSocketPath = "/tmp/localsend-notify.sock"
 	// UnixSocketTimeout is the timeout for Unix socket operations
-	UnixSocketTimeout = 3 * time.Second // set unix socket quickly
+	UnixSocketTimeout = 3 * time.Second // set unix socket quickly, actually they dont need to change
 	UseNotify         = true
+	PlainTextTypes    = []string{
+		"text/plain",
+		"text/txt",
+		"application/txt",
+		"text/x-log",
+		"text/x-markdown",
+		"text/markdown",
+		"text/x-diff",
+		"text/x-patch",
+	}
 )
 
-// Notification represents a notification message structure
-type Notification struct {
-	Type       string         `json:"type,omitempty"`       // Notification type, e.g. "upload_start", "upload_end", etc.
-	Title      string         `json:"title,omitempty"`      // Notification title
-	Message    string         `json:"message,omitempty"`    // Notification message/content
-	Data       map[string]any `json:"data,omitempty"`       // Additional data fields
-	IsTextOnly bool           `json:"isTextOnly,omitempty"` // Indicates if this is plain text content
+// SetUseNotify sets whether to use notify
+func SetUseNotify(use bool) {
+	UseNotify = use
 }
 
 // SendNotification sends notification via Unix Domain Socket
-func SendNotification(notification *Notification, socketPath string) error {
+func SendNotification(notification *types.Notification, socketPath string) error {
 	if !UseNotify {
 		return nil
 	}
@@ -119,10 +126,10 @@ func SendNotification(notification *Notification, socketPath string) error {
 	return nil
 }
 
-// SendUploadNotification sends upload-related notifications using Unix Domain Socket
-// eventType should be "upload_start" or "upload_end"
+// SendUploadNotification sends upload-related notifications using Unix Domain Socket.
+// eventType should be types.NotifyTypeUploadStart or types.NotifyTypeUploadEnd.
 func SendUploadNotification(eventType, sessionId, fileId string, fileInfo map[string]any) error {
-	notification := &Notification{
+	notification := &types.Notification{
 		Type: eventType,
 		Data: map[string]any{
 			"sessionId": sessionId,
@@ -165,7 +172,7 @@ func SendUploadNotification(eventType, sessionId, fileId string, fileInfo map[st
 
 	// Set title and message based on event type
 	switch eventType {
-	case "upload_start":
+	case types.NotifyTypeUploadStart:
 		if notification.IsTextOnly {
 			notification.Title = "Text Upload Started"
 			notification.Message = fmt.Sprintf("Text content upload started: sessionId=%s, fileId=%s", sessionId, fileId)
@@ -173,7 +180,7 @@ func SendUploadNotification(eventType, sessionId, fileId string, fileInfo map[st
 			notification.Title = "Upload Started"
 			notification.Message = fmt.Sprintf("File upload started: sessionId=%s, fileId=%s", sessionId, fileId)
 		}
-	case "upload_end":
+	case types.NotifyTypeUploadEnd:
 		if notification.IsTextOnly {
 			notification.Title = "Text Upload Completed"
 			notification.Message = fmt.Sprintf("Text content upload completed: sessionId=%s, fileId=%s", sessionId, fileId)
@@ -191,24 +198,12 @@ func SendUploadNotification(eventType, sessionId, fileId string, fileInfo map[st
 
 // SendSimpleNotification sends a simple text notification
 func SendSimpleNotification(title, message string) error {
-	notification := &Notification{
-		Type:    "info",
+	notification := &types.Notification{
+		Type:    types.NotifyTypeInfo,
 		Title:   title,
 		Message: message,
 	}
 	return SendNotification(notification, DefaultUnixSocketPath)
-}
-
-// SetUnixSocketPath sets the default Unix socket path
-func SetUnixSocketPath(path string) {
-	DefaultUnixSocketPath = path
-	tool.DefaultLogger.Infof("Unix socket path set to: %s", path)
-}
-
-// SetUnixSocketTimeout sets the timeout for Unix socket operations
-func SetUnixSocketTimeout(timeout time.Duration) {
-	UnixSocketTimeout = timeout
-	tool.DefaultLogger.Infof("Unix socket timeout set to: %v", timeout)
 }
 
 // isPlainTextType checks if the given file type is a plain text type
@@ -219,20 +214,8 @@ func isPlainTextType(fileType string) bool {
 
 	fileType = strings.ToLower(strings.TrimSpace(fileType))
 
-	// Common plain text MIME types
-	plainTextTypes := []string{
-		"text/plain",
-		"text/txt",
-		"application/txt",
-		"text/x-log",
-		"text/x-markdown",
-		"text/markdown",
-		"text/x-diff",
-		"text/x-patch",
-	}
-
 	// Check exact match
-	if slices.Contains(plainTextTypes, fileType) {
+	if slices.Contains(PlainTextTypes, fileType) {
 		return true
 	}
 

@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/moyoez/localsend-base-protocol-golang/types"
+	"github.com/moyoez/localsend-go/types"
 )
 
 // UDP4 unsupport multicast
@@ -149,7 +149,6 @@ func NewHTTPReqWithApplication(req *http.Request, err error) (*http.Request, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	return req, nil
-
 }
 
 // IsAddrNotAvailableError detects address-not-available errors across platforms.

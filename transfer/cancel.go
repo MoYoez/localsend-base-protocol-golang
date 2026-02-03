@@ -5,8 +5,8 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/moyoez/localsend-base-protocol-golang/tool"
-	"github.com/moyoez/localsend-base-protocol-golang/types"
+	"github.com/moyoez/localsend-go/tool"
+	"github.com/moyoez/localsend-go/types"
 )
 
 // CancelSession cancels a transfer session.
@@ -19,13 +19,12 @@ func CancelSession(targetAddr *net.UDPAddr, remote *types.VersionMessage, sessio
 		return fmt.Errorf("invalid parameters: sessionId must not be empty")
 	}
 
-	urlBytes, err := tool.BuildCancelURL(targetAddr, remote, sessionId)
+	url, err := tool.BuildCancelURL(targetAddr, remote, sessionId)
 	if err != nil {
 		return fmt.Errorf("failed to build cancel URL: %v", err)
 	}
-	url := tool.BytesToString(urlBytes)
 
-	req, err := http.NewRequest("POST", url, nil)
+	req, err := tool.NewHTTPReqWithApplication(http.NewRequest("POST", url, nil))
 	if err != nil {
 		return fmt.Errorf("failed to create cancel request: %v", err)
 	}

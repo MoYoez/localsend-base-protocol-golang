@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/moyoez/localsend-base-protocol-golang/api/models"
-	"github.com/moyoez/localsend-base-protocol-golang/notify"
-	"github.com/moyoez/localsend-base-protocol-golang/tool"
-	"github.com/moyoez/localsend-base-protocol-golang/types"
+	"github.com/moyoez/localsend-go/api/models"
+	"github.com/moyoez/localsend-go/notify"
+	"github.com/moyoez/localsend-go/tool"
+	"github.com/moyoez/localsend-go/types"
 )
 
 // HandlePrepareDownload handles prepare-download request (LocalSend protocol 5.2)
@@ -109,8 +109,8 @@ func HandlePrepareDownload(c *gin.Context) {
 				filesList = append(filesList, info)
 			}
 
-			notification := &notify.Notification{
-				Type:    "confirm_download",
+			notification := &types.Notification{
+				Type:    types.NotifyTypeConfirmDownload,
 				Title:   "Confirm Download",
 				Message: "Receiver is requesting to download files. Allow?",
 				Data: map[string]any{

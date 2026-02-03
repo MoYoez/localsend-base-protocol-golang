@@ -5,6 +5,8 @@ import (
 	"sync"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/moyoez/localsend-go/types"
 )
 
 var favoritesMu sync.RWMutex
@@ -27,7 +29,7 @@ func AddFavorite(fingerprint, alias string) error {
 
 	// Add new entry if not found
 	if !found {
-		CurrentConfig.FavoriteDevices = append(CurrentConfig.FavoriteDevices, FavoriteDeviceEntry{
+		CurrentConfig.FavoriteDevices = append(CurrentConfig.FavoriteDevices, types.FavoriteDeviceEntry{
 			Fingerprint: fingerprint,
 			Alias:       alias,
 		})
@@ -38,12 +40,12 @@ func AddFavorite(fingerprint, alias string) error {
 }
 
 // ListFavorites returns a copy of the current favorite devices list.
-func ListFavorites() []FavoriteDeviceEntry {
+func ListFavorites() []types.FavoriteDeviceEntry {
 	favoritesMu.RLock()
 	defer favoritesMu.RUnlock()
 
 	// Return a copy to avoid race conditions
-	result := make([]FavoriteDeviceEntry, len(CurrentConfig.FavoriteDevices))
+	result := make([]types.FavoriteDeviceEntry, len(CurrentConfig.FavoriteDevices))
 	copy(result, CurrentConfig.FavoriteDevices)
 	return result
 }
@@ -54,7 +56,7 @@ func RemoveFavorite(fingerprint string) error {
 	defer favoritesMu.Unlock()
 
 	// Find and remove the entry
-	newList := make([]FavoriteDeviceEntry, 0, len(CurrentConfig.FavoriteDevices))
+	newList := make([]types.FavoriteDeviceEntry, 0, len(CurrentConfig.FavoriteDevices))
 	for _, fav := range CurrentConfig.FavoriteDevices {
 		if fav.Fingerprint != fingerprint {
 			newList = append(newList, fav)
@@ -84,12 +86,9 @@ func IsFavorite(fingerprint string) bool {
 		}
 		return false
 	}
+	var favConfig types.FavoriteDevicesYamlFileConfig
 
-	// Parse only the favoriteDevices field
-	var cfg struct {
-		FavoriteDevices []FavoriteDeviceEntry `yaml:"favoriteDevices"`
-	}
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	if err := yaml.Unmarshal(data, &favConfig); err != nil {
 		DefaultLogger.Debugf("IsFavorite: failed to parse config file: %v, falling back to memory", err)
 		// Fallback to in-memory check
 		for _, fav := range CurrentConfig.FavoriteDevices {
@@ -101,7 +100,7 @@ func IsFavorite(fingerprint string) bool {
 	}
 
 	// Check if fingerprint exists in favorites
-	for _, fav := range cfg.FavoriteDevices {
+	for _, fav := range favConfig.FavoriteDevices {
 		if fav.Fingerprint == fingerprint {
 			return true
 		}

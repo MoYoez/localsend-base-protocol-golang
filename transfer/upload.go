@@ -7,8 +7,8 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/moyoez/localsend-base-protocol-golang/tool"
-	"github.com/moyoez/localsend-base-protocol-golang/types"
+	"github.com/moyoez/localsend-go/tool"
+	"github.com/moyoez/localsend-go/types"
 )
 
 // UploadFile sends file data to the receiver.
@@ -37,11 +37,10 @@ func UploadFileWithContext(ctx context.Context, targetAddr *net.UDPAddr, remote 
 	default:
 	}
 
-	urlBytes, err := tool.BuildUploadURL(targetAddr, remote, sessionId, fileId, token)
+	url, err := tool.BuildUploadURL(targetAddr, remote, sessionId, fileId, token)
 	if err != nil {
 		return fmt.Errorf("failed to build upload URL: %v", err)
 	}
-	url := tool.BytesToString(urlBytes)
 
 	// Create request with context for cancellation support
 	req, err := http.NewRequestWithContext(ctx, "POST", url, data)

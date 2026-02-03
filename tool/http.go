@@ -9,10 +9,12 @@ import (
 var (
 	DefaultTimeout       = 30 * time.Second
 	ConnectionHttpClient *http.Client
+	DetectHttpClient     *http.Client
 )
 
 func init() {
 	ConnectionHttpClient = NewHTTPClient()
+	DetectHttpClient = NewHTTPClient()
 }
 
 // NewHTTPClient creates an HTTP client, skipping self-signed certificate verification in HTTPS mode.

@@ -1,15 +1,5 @@
 package types
 
-import "io"
-
-// HandlerInterface defines the interface for API request handlers
-type HandlerInterface interface {
-	OnRegister(remote *VersionMessage) error
-	OnPrepareUpload(request *PrepareUploadRequest, pin string) (*PrepareUploadResponse, error)
-	OnUpload(sessionId, fileId, token string, data io.Reader, remoteAddr string) error
-	OnCancel(sessionId string) error
-}
-
 type PrepareUploadRequest struct {
 	Info  DeviceInfo          `json:"info"`
 	Files map[string]FileInfo `json:"files"`
@@ -29,4 +19,11 @@ type PrepareUploadReverseProxyResp struct {
 	Info      DeviceInfoReverseMode `json:"info"`
 	SessionId string                `json:"sessionId"`
 	Files     map[string]FileInfo   `json:"files"`
+}
+
+// Notify Worker, Upload_start Notify event
+type HandlerPrepareUploadNotifyWorker struct {
+	TotalFiles int
+	TotalSize  int64
+	Files      []FileInfo
 }

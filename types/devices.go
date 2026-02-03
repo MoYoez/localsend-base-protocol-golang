@@ -21,3 +21,19 @@ type DeviceInfoReverseMode struct {
 	Fingerprint string `json:"fingerprint"`           // Device identifier (ignored in HTTPS mode)
 	Download    bool   `json:"download,omitempty"`    // If download API (5.2, 5.3) is active (optional, default: false)
 }
+
+// UserScanCurrentItem holds discovered device info with IP address
+type UserScanCurrentItem struct {
+	Ipaddress string `json:"ip_address"`
+	VersionMessage
+}
+
+// SelfNetworkInfo represents the local device's network information
+// including IP address and broadcast segment number
+type SelfNetworkInfo struct {
+	InterfaceName string `json:"interface_name"` // network interface name
+	IPAddress     string `json:"ip_address"`     // ip address
+	Number        string `json:"number"`         // number
+	NumberInt     int    `json:"number_int"`     // number int
+}
+

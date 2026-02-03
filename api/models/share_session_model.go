@@ -5,24 +5,9 @@ import (
 	"time"
 
 	ttlworker "github.com/FloatTech/ttl"
-	"github.com/moyoez/localsend-base-protocol-golang/tool"
-	"github.com/moyoez/localsend-base-protocol-golang/types"
+	"github.com/moyoez/localsend-go/tool"
+	"github.com/moyoez/localsend-go/types"
 )
-
-// ShareFileEntry holds file metadata and local path for download
-type ShareFileEntry struct {
-	FileInfo  types.FileInfo
-	LocalPath string // path on disk for serving
-}
-
-// ShareSession represents a share session for the download API
-type ShareSession struct {
-	SessionId  string
-	Files      map[string]ShareFileEntry
-	CreatedAt  time.Time
-	Pin        string
-	AutoAccept bool
-}
 
 const (
 	ShareSessionTTL = 3600 * time.Second // 1 hour
@@ -30,20 +15,20 @@ const (
 
 var (
 	shareSessionMu        sync.RWMutex
-	shareSessions         = ttlworker.NewCache[string, *ShareSession](ShareSessionTTL)
+	shareSessions         = ttlworker.NewCache[string, *types.ShareSession](ShareSessionTTL)
 	confirmDownloadChans  = ttlworker.NewCache[string, chan types.ConfirmResult](tool.DefaultTTL)
 	confirmedDownloadSess = ttlworker.NewCache[string, bool](ShareSessionTTL) // 已确认的会话，同意后可直接下载任意文件
 )
 
 // CacheShareSession stores a share session
-func CacheShareSession(session *ShareSession) {
+func CacheShareSession(session *types.ShareSession) {
 	shareSessionMu.Lock()
 	defer shareSessionMu.Unlock()
 	shareSessions.Set(session.SessionId, session)
 }
 
 // GetShareSession retrieves a share session by ID
-func GetShareSession(sessionId string) (*ShareSession, bool) {
+func GetShareSession(sessionId string) (*types.ShareSession, bool) {
 	shareSessionMu.RLock()
 	defer shareSessionMu.RUnlock()
 	sess := shareSessions.Get(sessionId)
@@ -76,7 +61,6 @@ func MarkDownloadConfirmed(sessionId string) {
 	confirmedDownloadSess.Set(sessionId, true)
 }
 
-
 // SetConfirmDownloadChannel sets the channel for confirm-download callback
 func SetConfirmDownloadChannel(sessionId string, ch chan types.ConfirmResult) {
 	shareSessionMu.Lock()
@@ -103,7 +87,7 @@ func DeleteConfirmDownloadChannel(sessionId string) {
 }
 
 // GetShareSessionFiles returns the files map for prepare-download response
-func GetShareSessionFiles(session *ShareSession) map[string]types.FileInfo {
+func GetShareSessionFiles(session *types.ShareSession) map[string]types.FileInfo {
 	files := make(map[string]types.FileInfo, len(session.Files))
 	for id, entry := range session.Files {
 		files[id] = entry.FileInfo
@@ -112,7 +96,7 @@ func GetShareSessionFiles(session *ShareSession) map[string]types.FileInfo {
 }
 
 // LookupShareFile looks up a file in a share session
-func LookupShareFile(session *ShareSession, fileId string) (ShareFileEntry, bool) {
+func LookupShareFile(session *types.ShareSession, fileId string) (types.ShareFileEntry, bool) {
 	entry, ok := session.Files[fileId]
 	return entry, ok
 }
