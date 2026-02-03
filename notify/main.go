@@ -22,6 +22,16 @@ var (
 	// UnixSocketTimeout is the timeout for Unix socket operations
 	UnixSocketTimeout = 3 * time.Second // set unix socket quickly, actually they dont need to change
 	UseNotify         = true
+	PlainTextTypes    = []string{
+		"text/plain",
+		"text/txt",
+		"application/txt",
+		"text/x-log",
+		"text/x-markdown",
+		"text/markdown",
+		"text/x-diff",
+		"text/x-patch",
+	}
 )
 
 // SetUseNotify sets whether to use notify
@@ -204,20 +214,8 @@ func isPlainTextType(fileType string) bool {
 
 	fileType = strings.ToLower(strings.TrimSpace(fileType))
 
-	// Common plain text MIME types
-	plainTextTypes := []string{
-		"text/plain",
-		"text/txt",
-		"application/txt",
-		"text/x-log",
-		"text/x-markdown",
-		"text/markdown",
-		"text/x-diff",
-		"text/x-patch",
-	}
-
 	// Check exact match
-	if slices.Contains(plainTextTypes, fileType) {
+	if slices.Contains(PlainTextTypes, fileType) {
 		return true
 	}
 

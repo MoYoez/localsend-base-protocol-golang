@@ -41,9 +41,9 @@
 | `-usePin`                      | string   | (空)     | 指定上传时需要的 PIN
 | `-useDownload`                 | Boolean  | false    | 若为 true，启用 Download API（prepare-download、download、下载页）
 | `-webOutPath`                  | string   | web/out  | Next.js 静态导出的输出路径（用于下载页）
-| `-useAutoSave`                 | Boolean  | true     | 若为 false，则在接收文件时需要手动确认                |
+| `-useAutoSave`                 | Boolean  | false    | 若为 false，则在接收文件时需要手动确认                |
 | `-useAlias`                    | string  | (空) | 指定别名以在互联网上显示 |
-| `-useHttps`                   | bool    | true    | 若为 true，使用 https（加密）；若为 false，使用 http（不加密）。protocol 配置的别名。 |
+| `-useHttp`                   | bool    | true    | 若为 true，使用 http；若为 false，使用 http（加密）。 |
 | `-useMixedScan`               | bool    | false   | 使用混合模式扫描 (UDP+HTTP)
 | `-skipNotify`                 | bool    | false   | 跳过对 Decky 的 unix 的通信
 | `-scanTimeout`                | int     | 500       | 设备扫描超时时间

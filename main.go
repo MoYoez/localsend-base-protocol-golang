@@ -42,6 +42,7 @@ func main() {
 	boardcast.SetReferNetworkInterface(FlagConfig.UseReferNetworkInterface)
 	api.SetDefaultUploadFolder(FlagConfig.UseDefaultUploadFolder)
 	api.SetDoNotMakeSessionFolder(FlagConfig.DoNotMakeSessionFolder)
+	tool.SetProgramConfigStatus(FlagConfig.UsePin, FlagConfig.UseAutoSave, FlagConfig.UseAutoSaveFromFavorites)
 	api.SetDefaultWebOutPath(FlagConfig.UseWebOutPath)
 	notify.SetUseNotify(!FlagConfig.SkipNotify)
 
