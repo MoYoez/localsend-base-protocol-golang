@@ -4,6 +4,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/moyoez/localsend-base-protocol-golang/api"
 	"github.com/moyoez/localsend-base-protocol-golang/boardcast"
+	"github.com/moyoez/localsend-base-protocol-golang/notify"
 	"github.com/moyoez/localsend-base-protocol-golang/tool"
 )
 
@@ -34,12 +35,14 @@ func main() {
 		tool.DefaultLogger.SetLevel(log.InfoLevel)
 	}
 
+	// sets here.
 	boardcast.SetMultcastAddress(FlagConfig.UseMultcastAddress)
 	boardcast.SetMultcastPort(FlagConfig.UseMultcastPort)
 	boardcast.SetReferNetworkInterface(FlagConfig.UseReferNetworkInterface)
 	api.SetDefaultUploadFolder(FlagConfig.UseDefaultUploadFolder)
 	api.SetDoNotMakeSessionFolder(FlagConfig.DoNotMakeSessionFolder)
 	api.SetDefaultWebOutPath(FlagConfig.UseWebOutPath)
+	notify.SetUseNotify(!FlagConfig.SkipNotify)
 
 	// armed, clear this area. // port should focus on 53317
 	apiServer := api.NewServerWithConfig(53317, message.Protocol, FlagConfig.UseConfigPath)

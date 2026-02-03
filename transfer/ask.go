@@ -40,12 +40,10 @@ func ReadyToUploadTo(targetAddr *net.UDPAddr, remote *types.VersionMessage, requ
 		return nil, fmt.Errorf("failed to marshal prepare-upload request: %v", err)
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewReader(payload))
+	req, err := tool.NewHTTPReqWithApplication(http.NewRequest("POST", url, bytes.NewReader(payload)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create prepare-upload request: %v", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
-
 	client := tool.GetHttpClient()
 	resp, err := client.Do(req)
 	if err != nil {
@@ -133,7 +131,7 @@ func FetchDeviceInfo(ip string, port int) (*types.CallbackLegacyVersionMessageHT
 	for _, protocol := range protocols {
 		url := tool.BuildInfoURL(protocol, ip, port)
 
-		req, err := http.NewRequest("GET", url, nil)
+		req, err := tool.NewHTTPReqWithApplication(http.NewRequest("GET", url, nil))
 		if err != nil {
 			lastErr = fmt.Errorf("failed to create info request: %v", err)
 			continue

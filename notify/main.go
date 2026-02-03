@@ -19,7 +19,7 @@ var (
 	// DefaultUnixSocketPath is the default Unix socket path for IPC
 	DefaultUnixSocketPath = "/tmp/localsend-notify.sock"
 	// UnixSocketTimeout is the timeout for Unix socket operations
-	UnixSocketTimeout = 3 * time.Second // set unix socket quickly
+	UnixSocketTimeout = 3 * time.Second // set unix socket quickly, actually they dont need to change
 	UseNotify         = true
 )
 
@@ -30,6 +30,11 @@ type Notification struct {
 	Message    string         `json:"message,omitempty"`    // Notification message/content
 	Data       map[string]any `json:"data,omitempty"`       // Additional data fields
 	IsTextOnly bool           `json:"isTextOnly,omitempty"` // Indicates if this is plain text content
+}
+
+// SetUseNotify sets whether to use notify
+func SetUseNotify(use bool) {
+	UseNotify = use
 }
 
 // SendNotification sends notification via Unix Domain Socket
@@ -197,18 +202,6 @@ func SendSimpleNotification(title, message string) error {
 		Message: message,
 	}
 	return SendNotification(notification, DefaultUnixSocketPath)
-}
-
-// SetUnixSocketPath sets the default Unix socket path
-func SetUnixSocketPath(path string) {
-	DefaultUnixSocketPath = path
-	tool.DefaultLogger.Infof("Unix socket path set to: %s", path)
-}
-
-// SetUnixSocketTimeout sets the timeout for Unix socket operations
-func SetUnixSocketTimeout(timeout time.Duration) {
-	UnixSocketTimeout = timeout
-	tool.DefaultLogger.Infof("Unix socket timeout set to: %v", timeout)
 }
 
 // isPlainTextType checks if the given file type is a plain text type

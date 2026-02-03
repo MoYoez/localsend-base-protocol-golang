@@ -20,3 +20,10 @@ type PrepareUploadReverseProxyResp struct {
 	SessionId string                `json:"sessionId"`
 	Files     map[string]FileInfo   `json:"files"`
 }
+
+// Notify Worker, Upload_start Notify event
+type HandlerPrepareUploadNotifyWorker struct {
+	TotalFiles int
+	TotalSize  int64
+	Files      []FileInfo
+}

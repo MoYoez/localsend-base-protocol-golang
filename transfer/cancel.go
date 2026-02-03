@@ -24,7 +24,7 @@ func CancelSession(targetAddr *net.UDPAddr, remote *types.VersionMessage, sessio
 		return fmt.Errorf("failed to build cancel URL: %v", err)
 	}
 
-	req, err := http.NewRequest("POST", url, nil)
+	req, err := tool.NewHTTPReqWithApplication(http.NewRequest("POST", url, nil))
 	if err != nil {
 		return fmt.Errorf("failed to create cancel request: %v", err)
 	}

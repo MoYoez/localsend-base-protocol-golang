@@ -217,45 +217,45 @@ func (ctrl *UploadController) HandleUploadV1Upload(c *gin.Context) {
 
 	uploadErr := defaults.DefaultOnUpload(sessionId, fileId, token, c.Request.Body, remoteAddr)
 	if uploadErr != nil {
-			tool.DefaultLogger.Errorf("[V1 Send] Upload callback error: %v", uploadErr)
+		tool.DefaultLogger.Errorf("[V1 Send] Upload callback error: %v", uploadErr)
 
-			// Mark file as failed and check if all files are done
-			remaining, isLast, stats := models.MarkFileUploadedAndCheckComplete(sessionId, fileId, false)
-			tool.DefaultLogger.Infof("[V1 Send] File failed: %s, remaining files: %d, isLast: %v", fileId, remaining, isLast)
+		// Mark file as failed and check if all files are done
+		remaining, isLast, stats := models.MarkFileUploadedAndCheckComplete(sessionId, fileId, false)
+		tool.DefaultLogger.Infof("[V1 Send] File failed: %s, remaining files: %d, isLast: %v", fileId, remaining, isLast)
 
-			// Send notification when all files are processed (even if some failed)
-			if isLast && stats != nil {
-				go func(sid string, stats *models.SessionUploadStats, remoteAddr string) {
-					// remove session
-					models.RemoveV1Session(remoteAddr)
-					tool.DefaultLogger.Infof("[V1 Notify] Sending upload_end notification (all files processed): sessionId=%s, success=%d, failed=%d",
-						sid, stats.SuccessFiles, stats.FailedFiles)
-					if err := notify.SendUploadNotification("upload_end", sid, "", map[string]any{
-						"totalFiles":    stats.TotalFiles,
-						"successFiles":  stats.SuccessFiles,
-						"failedFiles":   stats.FailedFiles,
-						"failedFileIds": stats.FailedFileIds,
-					}); err != nil {
-						tool.DefaultLogger.Errorf("[V1 Notify] Failed to send upload_end notification: %v", err)
-					}
+		// Send notification when all files are processed (even if some failed)
+		if isLast && stats != nil {
+			go func(sid string, stats *models.SessionUploadStats, remoteAddr string) {
+				// remove session
+				models.RemoveV1Session(remoteAddr)
+				tool.DefaultLogger.Infof("[V1 Notify] Sending upload_end notification (all files processed): sessionId=%s, success=%d, failed=%d",
+					sid, stats.SuccessFiles, stats.FailedFiles)
+				if err := notify.SendUploadNotification("upload_end", sid, "", map[string]any{
+					"totalFiles":    stats.TotalFiles,
+					"successFiles":  stats.SuccessFiles,
+					"failedFiles":   stats.FailedFiles,
+					"failedFileIds": stats.FailedFileIds,
+				}); err != nil {
+					tool.DefaultLogger.Errorf("[V1 Notify] Failed to send upload_end notification: %v", err)
+				}
 
-					models.CleanupSessionStats(sid)
-					models.RemoveUploadSession(sid)
-				}(sessionId, stats, remoteAddr)
-			}
+				models.CleanupSessionStats(sid)
+				models.RemoveUploadSession(sid)
+			}(sessionId, stats, remoteAddr)
+		}
 
-			errorMsg := uploadErr.Error()
-			switch errorMsg {
-			case "Invalid token or IP address":
-				c.JSON(http.StatusForbidden, tool.FastReturnError(errorMsg))
-				return
-			case "Blocked by another session":
-				c.JSON(http.StatusConflict, tool.FastReturnError(errorMsg))
-				return
-			default:
-				c.JSON(http.StatusInternalServerError, tool.FastReturnError(errorMsg))
-				return
-			}
+		errorMsg := uploadErr.Error()
+		switch errorMsg {
+		case "Invalid token or IP address":
+			c.JSON(http.StatusForbidden, tool.FastReturnError(errorMsg))
+			return
+		case "Blocked by another session":
+			c.JSON(http.StatusConflict, tool.FastReturnError(errorMsg))
+			return
+		default:
+			c.JSON(http.StatusInternalServerError, tool.FastReturnError(errorMsg))
+			return
+		}
 	}
 	// Upload successful
 	if !hasFileInfo {
