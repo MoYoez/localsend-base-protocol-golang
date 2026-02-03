@@ -18,10 +18,6 @@ import (
 	"github.com/moyoez/localsend-base-protocol-golang/types"
 )
 
-// WebOutPath is the path to the Next.js static export output (web/out)
-// Set via -webOutPath flag or defaults to web/out relative to working directory
-var WebOutPath = "web/out"
-
 // Server represents the HTTP API server for receiving TCP API requests
 type Server struct {
 	port       int
@@ -35,11 +31,19 @@ type Server struct {
 var (
 	DefaultConfigPath   = "config.yaml"
 	DefaultUploadFolder = "uploads"
+	WebOutPath          = "web/out"
 )
 
 // SetDoNotMakeSessionFolder sets whether to skip session subfolder and use numbered filenames when same name exists.
 func SetDoNotMakeSessionFolder(v bool) {
 	models.DoNotMakeSessionFolder = v
+}
+
+// SetDefaultWebOutPath sets the default web out path for both api and models packages
+func SetDefaultWebOutPath(path string) {
+	if path != "" {
+		WebOutPath = path
+	}
 }
 
 // SetSelfDevice sets the local device info used for user-side scanning.
@@ -49,12 +53,10 @@ func SetSelfDevice(device *types.VersionMessage) {
 
 // SetDefaultUploadFolder sets the default upload folder for both api and models packages
 func SetDefaultUploadFolder(folder string) {
-	DefaultUploadFolder = folder
-	models.DefaultUploadFolder = folder
-}
-
-func init() {
-	models.DefaultUploadFolder = DefaultUploadFolder
+	if folder != "" {
+		DefaultUploadFolder = folder
+		models.DefaultUploadFolder = folder
+	}
 }
 
 // NewServerWithConfig creates a new API server instance with custom config path

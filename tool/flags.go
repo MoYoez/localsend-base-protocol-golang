@@ -27,9 +27,9 @@ type Config struct {
 // SetFlags parses CLI flags and returns the override config.
 func SetFlags() Config {
 	var cfg Config
-	flag.StringVar(&cfg.Log, "log", "dev", "log mode: dev|prod|none")
-	flag.StringVar(&cfg.UseMultcastAddress, "useMultcastAddress", "224.0.0.167", "override multicast address")
-	flag.IntVar(&cfg.UseMultcastPort, "useMultcastPort", 53317, "override multicast port")
+	flag.StringVar(&cfg.Log, "log", "prod", "log mode: dev|prod|none")
+	flag.StringVar(&cfg.UseMultcastAddress, "useMultcastAddress", "", "override multicast address")
+	flag.IntVar(&cfg.UseMultcastPort, "useMultcastPort", 0, "override multicast port")
 	flag.StringVar(&cfg.UseConfigPath, "useConfigPath", "config.yaml", "override config file path")
 	flag.StringVar(&cfg.UseDefaultUploadFolder, "useDefaultUploadFolder", "uploads", "override default upload folder")
 	flag.BoolVar(&cfg.UseLegacyMode, "useLegacyMode", false, "use legacy HTTP mode to scan devices (scan every 30 seconds)")
@@ -43,7 +43,7 @@ func SetFlags() Config {
 	flag.BoolVar(&cfg.UseHttp, "useHttp", false, "if true, use http; if false, use https. Alias for protocol config.")
 	flag.IntVar(&cfg.ScanTimeout, "scanTimeout", 500, "scan timeout in seconds, default 500. After timeout, auto scan will stop. Set to 0 to disable timeout.")
 	flag.BoolVar(&cfg.UseDownload, "useDownload", false, "if true, enable download API (prepare-download, download, download page)")
-	flag.StringVar(&cfg.UseWebOutPath, "webOutPath", "./web/out", "path to Next.js static export output for download page, maybe you dont need to change.")
+	flag.StringVar(&cfg.UseWebOutPath, "useWebOutPath", "", "path to Next.js static export output for download page, maybe you dont need to change.")
 	flag.BoolVar(&cfg.DoNotMakeSessionFolder, "doNotMakeSessionFolder", false, "if true, do not create session subfolder; when file name exists, save as name-2.ext, name-3.ext, ...")
 	flag.Parse()
 	return cfg

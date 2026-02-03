@@ -2,7 +2,6 @@ package boardcast
 
 import (
 	"bytes"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -143,17 +142,6 @@ func ListenMulticastUsingHTTPWithTimeout(self *types.VersionMessageHTTP, timeout
 		return
 	}
 
-	httpClient := &http.Client{
-		Timeout: httpScanTimeout,
-		Transport: &http.Transport{
-			TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
-			MaxIdleConns:        50,
-			MaxIdleConnsPerHost: 5,
-			IdleConnTimeout:     10 * time.Second,
-			DisableKeepAlives:   false,
-		},
-	}
-
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
@@ -209,7 +197,7 @@ func ListenMulticastUsingHTTPWithTimeout(self *types.VersionMessageHTTP, timeout
 				defer wg.Done()
 				sem <- struct{}{}
 				defer func() { <-sem }()
-				scanOneIPHTTP(targetIP, payloadBytes, httpClient)
+				scanOneIPHTTP(targetIP, payloadBytes, tool.DetectHttpClient)
 			}(ip)
 		}
 		wg.Wait()
@@ -261,17 +249,6 @@ func ScanOnceHTTP(self *types.VersionMessageHTTP) error {
 	}
 	targets = filtered
 
-	httpClient := &http.Client{
-		Timeout: httpScanTimeout,
-		Transport: &http.Transport{
-			TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
-			MaxIdleConns:        50,
-			MaxIdleConnsPerHost: 5,
-			IdleConnTimeout:     10 * time.Second,
-			DisableKeepAlives:   false,
-		},
-	}
-
 	sem := make(chan struct{}, httpScanConcurrencyLimit)
 	var wg sync.WaitGroup
 	for _, ip := range targets {
@@ -280,7 +257,7 @@ func ScanOnceHTTP(self *types.VersionMessageHTTP) error {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			scanOneIPHTTP(targetIP, payloadBytes, httpClient)
+			scanOneIPHTTP(targetIP, payloadBytes, tool.DetectHttpClient)
 		}(ip)
 	}
 	wg.Wait()

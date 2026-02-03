@@ -18,15 +18,13 @@ const (
 	httpScanConcurrencyLimit = 25
 	// tcpProbeTimeout is the timeout for TCP port probe
 	tcpProbeTimeout = 500 * time.Millisecond
-	// httpScanTimeout is the timeout for HTTP requests during scanning
-	httpScanTimeout = 2 * time.Second
 )
 
 var (
 	multcastAddress       = defaultMultcastAddress
 	multcastPort          = defaultMultcastPort
 	referNetworkInterface string // the specified network interface name
-	listenAllInterfaces   bool   // whether to listen on all network interfaces
+	listenAllInterfaces   = true // whether to listen on all network interfaces
 
 	// networkIPsCache caches generated network IPs to avoid repeated generation
 	networkIPsCacheMu  sync.RWMutex
@@ -44,30 +42,25 @@ var (
 	autoScanUDPRunning  bool
 )
 
-// SetMultcastAddress overrides the default multicast address if non-empty.
+// SetMultcastAddress overrides the default multicast address
 func SetMultcastAddress(address string) {
-	if address == "" {
-		return
+	if address != "" {
+		multcastAddress = address
 	}
-	multcastAddress = address
 }
 
-// SetMultcastPort overrides the default multicast port if positive.
+// SetMultcastPort overrides the default multicast port
 func SetMultcastPort(port int) {
-	if port <= 0 {
-		return
+	if port > 0 {
+		multcastPort = port
 	}
-	multcastPort = port
 }
 
 // SetReferNetworkInterface sets the network interface to use for multicast.
 // If interfaceName is empty, it will use the system default interface.
 // If interfaceName is "*", it will listen on all available interfaces.
 func SetReferNetworkInterface(interfaceName string) {
-	if interfaceName == "*" {
-		listenAllInterfaces = true
-		referNetworkInterface = ""
-	} else {
+	if interfaceName != "" && interfaceName != "*" {
 		listenAllInterfaces = false
 		referNetworkInterface = interfaceName
 	}

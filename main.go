@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/charmbracelet/log"
 	"github.com/moyoez/localsend-base-protocol-golang/api"
 	"github.com/moyoez/localsend-base-protocol-golang/boardcast"
 	"github.com/moyoez/localsend-base-protocol-golang/tool"
@@ -17,8 +18,28 @@ func main() {
 
 	// set user self action.
 	message, httpMessage := tool.BuildVersionMessages(&appCfg, FlagConfig)
-
 	api.SetSelfDevice(message)
+
+	// set default sets here.
+
+	// LOG
+	switch FlagConfig.Log {
+	case "dev":
+		tool.DefaultLogger.SetLevel(log.DebugLevel)
+	case "prod":
+		tool.DefaultLogger.SetLevel(log.InfoLevel)
+	case "none":
+		tool.DefaultLogger.SetLevel(log.ErrorLevel)
+	default:
+		tool.DefaultLogger.SetLevel(log.InfoLevel)
+	}
+
+	boardcast.SetMultcastAddress(FlagConfig.UseMultcastAddress)
+	boardcast.SetMultcastPort(FlagConfig.UseMultcastPort)
+	boardcast.SetReferNetworkInterface(FlagConfig.UseReferNetworkInterface)
+	api.SetDefaultUploadFolder(FlagConfig.UseDefaultUploadFolder)
+	api.SetDoNotMakeSessionFolder(FlagConfig.DoNotMakeSessionFolder)
+	api.SetDefaultWebOutPath(FlagConfig.UseWebOutPath)
 
 	// armed, clear this area. // port should focus on 53317
 	apiServer := api.NewServerWithConfig(53317, message.Protocol, FlagConfig.UseConfigPath)
