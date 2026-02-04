@@ -177,10 +177,28 @@ func DefaultOnUpload(sessionId, fileId, token string, data io.Reader, remoteAddr
 	if fileName == "" {
 		fileName = fileId
 	}
-	fileName = filepath.Base(fileName)
-	targetPath := filepath.Join(uploadDir, fileName)
+	// Preserve relative path (e.g. "foldername/subdir/file.txt") for folder uploads
+	relativePath := filepath.Clean(filepath.FromSlash(fileName))
+	// Prevent path traversal: ensure result stays under uploadDir
+	uploadDirAbs, err := filepath.Abs(uploadDir)
+	if err != nil {
+		return fmt.Errorf("upload dir abs: %w", err)
+	}
+	targetPath := filepath.Join(uploadDir, relativePath)
+	targetPathAbs, err := filepath.Abs(targetPath)
+	if err != nil {
+		return fmt.Errorf("target path abs: %w", err)
+	}
+	rel, err := filepath.Rel(uploadDirAbs, targetPathAbs)
+	if err != nil || strings.HasPrefix(rel, "..") || rel == ".." {
+		return fmt.Errorf("invalid file path: path traversal not allowed")
+	}
+	// Create parent directories for folder structure
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		return fmt.Errorf("create parent dir failed: %w", err)
+	}
 	if models.DoNotMakeSessionFolder {
-		targetPath = tool.NextAvailablePath(uploadDir, fileName)
+		targetPath = tool.NextAvailablePath(filepath.Dir(targetPath), filepath.Base(targetPath))
 	}
 
 	file, err := os.Create(targetPath)
