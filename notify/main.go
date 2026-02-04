@@ -15,6 +15,9 @@ import (
 	"github.com/moyoez/localsend-go/types"
 )
 
+// MaxNotifyFiles is the maximum number of files to include in notify payload (truncate if exceeded)
+const MaxNotifyFiles = 20
+
 // Configuration for Unix Domain Socket notification
 var (
 	// DefaultUnixSocketPath is the default Unix socket path for IPC
@@ -140,6 +143,25 @@ func SendUploadNotification(eventType, sessionId, fileId string, fileInfo map[st
 	// Add file info if provided
 	if fileInfo != nil {
 		maps.Copy(notification.Data, fileInfo)
+		// Truncate large lists so notify payload stays bounded
+		if files, ok := notification.Data["files"].([]map[string]any); ok && len(files) > MaxNotifyFiles {
+			notification.Data["files"] = files[:MaxNotifyFiles]
+		}
+		if names, ok := notification.Data["savedFileNames"].([]string); ok && len(names) > MaxNotifyFiles {
+			notification.Data["savedFileNames"] = names[:MaxNotifyFiles]
+		}
+		if paths, ok := notification.Data["savePaths"].(map[string]string); ok && len(paths) > MaxNotifyFiles {
+			truncated := make(map[string]string, MaxNotifyFiles)
+			n := 0
+			for k, v := range paths {
+				if n >= MaxNotifyFiles {
+					break
+				}
+				truncated[k] = v
+				n++
+			}
+			notification.Data["savePaths"] = truncated
+		}
 	}
 
 	// Check if this is plain text content
