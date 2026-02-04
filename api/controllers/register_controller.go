@@ -2,12 +2,14 @@ package controllers
 
 import (
 	"io"
+	"net"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/moyoez/localsend-go/api/defaults"
 	"github.com/moyoez/localsend-go/api/models"
 	"github.com/moyoez/localsend-go/boardcast"
+	"github.com/moyoez/localsend-go/share"
 	"github.com/moyoez/localsend-go/tool"
 	"github.com/moyoez/localsend-go/types"
 )
@@ -45,6 +47,30 @@ func (ctrl *RegisterController) HandleRegister(c *gin.Context) {
 		tool.DefaultLogger.Errorf("[Register] Register callback error: %v", err)
 		c.JSON(http.StatusInternalServerError, tool.FastReturnError("Internal server error"))
 		return
+	}
+
+	// Add the registering device to scan-current so it appears in device list
+	if host, _, err := net.SplitHostPort(c.Request.RemoteAddr); err == nil && host != "" && incoming.Fingerprint != "" {
+		protocol := incoming.Protocol
+		if protocol == "" {
+			// use self protocol
+			self := models.GetSelfDevice()
+			protocol = self.Protocol
+		}
+		share.SetUserScanCurrent(incoming.Fingerprint, types.UserScanCurrentItem{
+			Ipaddress: host,
+			VersionMessage: types.VersionMessage{
+				Alias:       incoming.Alias,
+				Version:     incoming.Version,
+				DeviceModel: incoming.DeviceModel,
+				DeviceType:  incoming.DeviceType,
+				Fingerprint: incoming.Fingerprint,
+				Port:        incoming.Port,
+				Protocol:    protocol,
+				Download:    incoming.Download,
+				Announce:    incoming.Announce,
+			},
+		})
 	}
 
 	c.JSON(http.StatusOK, types.CallbackVersionMessageHTTP{
