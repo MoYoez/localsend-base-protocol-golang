@@ -51,6 +51,15 @@ func SendNotification(notification *types.Notification, socketPath string) error
 		socketPath = DefaultUnixSocketPath
 	}
 
+	// Truncate files for confirm_recv / confirm_download (prepare_upload flow)
+	if notification != nil && notification.Data != nil &&
+		(notification.Type == types.NotifyTypeConfirmRecv || notification.Type == types.NotifyTypeConfirmDownload) {
+		if files, ok := notification.Data["files"].([]types.FileInfo); ok && len(files) > MaxNotifyFiles {
+			notification.Data["files"] = files[:MaxNotifyFiles]
+			notification.Data["totalFiles"] = len(files)
+		}
+	}
+
 	// Check if socket file exists
 	if _, err := os.Stat(socketPath); os.IsNotExist(err) {
 		return fmt.Errorf("unix socket not found: %s (is the Python server running?)", socketPath)
