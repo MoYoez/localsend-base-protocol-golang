@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"maps"
@@ -14,6 +15,9 @@ import (
 	"github.com/moyoez/localsend-go/tool"
 	"github.com/moyoez/localsend-go/types"
 )
+
+// NotifyWriteChunkSize is the chunk size when writing payload to Unix socket (avoid large single write).
+const NotifyWriteChunkSize = 32 * 1024 // 32KB
 
 // MaxNotifyFiles is the maximum number of files to include in notify payload (truncate if exceeded)
 const MaxNotifyFiles = 20
@@ -77,6 +81,11 @@ func SendNotification(notification *types.Notification, socketPath string) error
 		payload = []byte("{}")
 	}
 
+	// Reject payload over 32KB
+	if len(payload) > NotifyWriteChunkSize {
+		return fmt.Errorf("notification payload too large: %d bytes (max %d)", len(payload), NotifyWriteChunkSize)
+	}
+
 	// Connect to Unix socket
 	conn, err := net.DialTimeout("unix", socketPath, UnixSocketTimeout)
 	if err != nil {
@@ -94,11 +103,24 @@ func SendNotification(notification *types.Notification, socketPath string) error
 		tool.DefaultLogger.Errorf("Failed to set write deadline: %v", err)
 	}
 
-	// Send data
-	tool.DefaultLogger.Debugf("Sending notification to Unix socket: %s", tool.BytesToString(payload))
-	_, err = conn.Write(payload)
+	// Send length prefix (4 bytes, little-endian uint32) then payload in chunks
+	lengthBuf := make([]byte, 4)
+	binary.LittleEndian.PutUint32(lengthBuf, uint32(len(payload)))
+	_, err = conn.Write(lengthBuf)
 	if err != nil {
-		return fmt.Errorf("failed to write to Unix socket: %v", err)
+		return fmt.Errorf("failed to write length to Unix socket: %v", err)
+	}
+	tool.DefaultLogger.Debugf("Sending notification to Unix socket (len=%d): %s", len(payload), tool.BytesToString(payload))
+	for off := 0; off < len(payload); {
+		chunkEnd := off + NotifyWriteChunkSize
+		if chunkEnd > len(payload) {
+			chunkEnd = len(payload)
+		}
+		nw, err := conn.Write(payload[off:chunkEnd])
+		if err != nil {
+			return fmt.Errorf("failed to write payload to Unix socket: %v", err)
+		}
+		off += nw
 	}
 
 	// Set read deadline
