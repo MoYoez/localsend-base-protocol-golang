@@ -134,8 +134,8 @@ func GenerateNetworkIPs(ipnet *net.IPNet) []string {
 
 // QuickICMPProbe checks if a host is reachable using ICMP echo (ping).
 // Returns true if the host replies within timeout, false otherwise.
-// Uses github.com/prometheus-community/pro-bing: on Linux uses unprivileged UDP ping by default
-// (see net.ipv4.ping_group_range); call pinger.SetPrivileged(true) for raw ICMP if needed.
+// Uses unprivileged mode (UDP-based ping on Linux) so it works without root/CAP_NET_RAW
+// (e.g. Steam Deck plugin). See net.ipv4.ping_group_range on Linux.
 func QuickICMPProbe(ip string, timeout time.Duration) bool {
 	if net.ParseIP(ip) == nil {
 		return false
@@ -145,9 +145,10 @@ func QuickICMPProbe(ip string, timeout time.Duration) bool {
 		DefaultLogger.Debugf("QuickICMPProbe: NewPinger %s: %v", ip, err)
 		return false
 	}
-	pinger.SetPrivileged(true)
+	// Unprivileged: use UDP ping (Linux) / no raw ICMP, avoids "socket: operation not permitted"
+	pinger.SetPrivileged(false)
 	pinger.Count = 1
-	pinger.Timeout = timeout // always 1s
+	pinger.Timeout = timeout
 	pinger.SetNetwork("ip4")
 	if err := pinger.Run(); err != nil {
 		DefaultLogger.Debugf("QuickICMPProbe: Run %s: %v", ip, err)
