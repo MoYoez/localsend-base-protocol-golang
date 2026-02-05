@@ -94,6 +94,15 @@ func ListUserScanCurrent() []string {
 	return keys
 }
 
+// ClearUserScanCurrent removes all entries from the scan result cache.
+// Used by scan-now to clear the list before performing a fresh scan.
+func ClearUserScanCurrent() {
+	keys := ListUserScanCurrent()
+	for _, k := range keys {
+		UserScanCurrent.Delete(k)
+	}
+}
+
 // GetSelfNetworkInfos returns all valid local network interfaces with their IP and segment number.
 // It ignores tun/vpn interfaces and loopback interfaces.
 // The number is derived from the last octet of the IP address.

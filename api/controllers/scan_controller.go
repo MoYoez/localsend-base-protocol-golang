@@ -33,8 +33,10 @@ func UserScanCurrent(c *gin.Context) {
 }
 
 // UserScanNow triggers an immediate device scan based on current configuration.
+// It clears the current device list first, then performs a fresh scan.
 // GET /api/self/v1/scan-now
 func UserScanNow(c *gin.Context) {
+	share.ClearUserScanCurrent()
 	err := boardcast.ScanNow()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, tool.FastReturnError("Scan failed: "+err.Error()))
