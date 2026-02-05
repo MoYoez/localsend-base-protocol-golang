@@ -207,8 +207,8 @@ func SendMulticastUsingUDPWithTimeout(message *types.VersionMessage, timeout int
 		}
 		_, err = c.Write(payload)
 		if err != nil {
-			if tool.IsAddrNotAvailableError(err) {
-				tool.DefaultLogger.Warnf("IP address not available, please check your network environment and try again: %v", err)
+			if tool.ShouldRedialUDP(err) {
+				tool.DefaultLogger.Warnf("IP/network unavailable (e.g. after network change), will redial on next send: %v", err)
 				_ = c.Close()
 				c = nil
 			} else {

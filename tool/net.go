@@ -161,24 +161,6 @@ func QuickICMPProbe(ip string, timeout time.Duration) bool {
 	return ok
 }
 
-// QuickTCPProbe checks if a port is open using a fast TCP connection attempt.
-// Returns true if the port is open, false otherwise.
-// Deprecated: Prefer QuickICMPProbe for host reachability (e.g. Steam Deck).
-func QuickTCPProbe(ip string, port int, timeout time.Duration) bool {
-	addr := net.JoinHostPort(ip, strconv.Itoa(port))
-	conn, err := net.DialTimeout("tcp", addr, timeout)
-	if err != nil {
-		return false
-	}
-	DefaultLogger.Debugf("quickTCPProbe: dial %s success", addr)
-	defer func() {
-		if err := conn.Close(); err != nil {
-			DefaultLogger.Errorf("Failed to close TCP connection: %v", err)
-		}
-	}()
-	return true
-}
-
 func NewHTTPReqWithApplication(req *http.Request, err error) (*http.Request, error) {
 	if err != nil {
 		return nil, err
@@ -199,6 +181,22 @@ func IsAddrNotAvailableError(err error) bool {
 	return strings.Contains(msg, "can't assign requested address") ||
 		strings.Contains(msg, "cannot assign requested address") ||
 		strings.Contains(msg, "address not available")
+}
+
+// IsNetworkUnreachableError detects network-unreachable errors (e.g. after interface/route change).
+// Uses string matching so it works on all platforms (syscall.ENETUNREACH is not defined on Windows).
+func IsNetworkUnreachableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "network is unreachable") ||
+		strings.Contains(msg, "no route to host")
+}
+
+// ShouldRedialUDP returns true if the error indicates the UDP connection should be closed and redialed (e.g. after network change).
+func ShouldRedialUDP(err error) bool {
+	return IsAddrNotAvailableError(err) || IsNetworkUnreachableError(err)
 }
 
 // shouldRespond determines if the device should respond to the incoming message (internal use).
