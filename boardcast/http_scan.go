@@ -110,7 +110,8 @@ func sendRegisterRequest(url string, payload string) error {
 
 // ListenMulticastUsingHTTPWithTimeout is the same as ListenMulticastUsingHTTP but with configurable timeout.
 // timeout: total duration in seconds after which scanning stops. 0 means no timeout.
-func ListenMulticastUsingHTTPWithTimeout(self *types.VersionMessageHTTP, timeout int) {
+// skipInitialScan: if true (e.g. after scan-now), do not run initial scan; first scan in 30s.
+func ListenMulticastUsingHTTPWithTimeout(self *types.VersionMessageHTTP, timeout int, skipInitialScan bool) {
 	if self == nil {
 		tool.DefaultLogger.Warn("ListenMulticastUsingHTTP: self is nil")
 		return
@@ -119,7 +120,7 @@ func ListenMulticastUsingHTTPWithTimeout(self *types.VersionMessageHTTP, timeout
 	autoScanControlMu.Lock()
 	autoScanHTTPRunning = true
 	if autoScanRestartCh == nil {
-		autoScanRestartCh = make(chan struct{}, 1)
+		autoScanRestartCh = make(chan restartAction, 1)
 	}
 	restartCh := autoScanRestartCh
 	autoScanControlMu.Unlock()
@@ -203,7 +204,11 @@ func ListenMulticastUsingHTTPWithTimeout(self *types.VersionMessageHTTP, timeout
 		wg.Wait()
 	}
 
-	scanOnce()
+	if !skipInitialScan {
+		scanOnce()
+	} else {
+		tool.DefaultLogger.Debug("HTTP scan: skipping initial scan, first scan in 30s")
+	}
 
 	for {
 		select {
@@ -211,10 +216,14 @@ func ListenMulticastUsingHTTPWithTimeout(self *types.VersionMessageHTTP, timeout
 			elapsed := time.Since(startTime)
 			tool.DefaultLogger.Infof("HTTP scanning stopped after timeout (%v elapsed)", elapsed.Round(time.Second))
 			return
-		case <-restartCh:
+		case action := <-restartCh:
 			resetTimeout()
 			startTime = time.Now()
-			scanOnce()
+			if !action.SkipHTTPImmediateScan {
+				scanOnce()
+			} else {
+				tool.DefaultLogger.Debug("HTTP scan: restart without immediate scan, next scan in 30s")
+			}
 		case <-ticker.C:
 			scanOnce()
 		}

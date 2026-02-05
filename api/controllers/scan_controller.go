@@ -32,8 +32,7 @@ func UserScanCurrent(c *gin.Context) {
 	c.JSON(http.StatusOK, tool.FastReturnSuccessWithData(values))
 }
 
-// UserScanNow triggers an immediate device scan based on current configuration.
-// It clears the current device list first, then performs a fresh scan.
+// UserScanNow triggers scan-now: HTTP scan only. Clears device list, runs HTTP scan, returns current devices; normal (mixed) auto scan continues in background.
 // GET /api/self/v1/scan-now
 func UserScanNow(c *gin.Context) {
 	share.ClearUserScanCurrent()

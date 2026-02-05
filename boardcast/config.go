@@ -38,10 +38,16 @@ var (
 
 	// autoScanControl controls the auto scan loops
 	autoScanControlMu   sync.Mutex
-	autoScanRestartCh   chan struct{} // channel to signal restart
+	autoScanRestartCh   chan restartAction // channel to signal restart
 	autoScanHTTPRunning bool
 	autoScanUDPRunning  bool
 )
+
+// restartAction is sent on autoScanRestartCh. When SkipHTTPImmediateScan is true (e.g. after scan-now),
+// HTTP loop only resets timeout and does not run scanOnce() immediately; next scan is in 30s.
+type restartAction struct {
+	SkipHTTPImmediateScan bool
+}
 
 // SetMultcastAddress overrides the default multicast address
 func SetMultcastAddress(address string) {

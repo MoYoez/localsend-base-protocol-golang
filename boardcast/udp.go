@@ -124,7 +124,7 @@ func SendMulticastUsingUDPWithTimeout(message *types.VersionMessage, timeout int
 	autoScanControlMu.Lock()
 	autoScanUDPRunning = true
 	if autoScanRestartCh == nil {
-		autoScanRestartCh = make(chan struct{}, 1)
+		autoScanRestartCh = make(chan restartAction, 1)
 	}
 	restartCh := autoScanRestartCh
 	autoScanControlMu.Unlock()
@@ -231,7 +231,7 @@ func SendMulticastUsingUDPWithTimeout(message *types.VersionMessage, timeout int
 			// Restart signal received, reset timeout and continue sending
 			resetTimeout()
 			startTime = time.Now()
-			sendOnce()
+			sendOnce() // UDP always sends immediately on restart
 		case <-ticker.C:
 			sendOnce()
 		}

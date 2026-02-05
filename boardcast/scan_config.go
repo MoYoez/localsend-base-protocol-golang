@@ -9,7 +9,7 @@ import (
 )
 
 // SetScanConfig sets the current scan configuration for scan-now API
-func SetScanConfig(mode types.ScanMode, selfMessage *types.VersionMessage, selfHTTP *types.VersionMessageHTTP, timeout int) {
+func SetScanConfig(mode types.ScanMode, selfMessage *types.VersionMessage, selfHTTP *types.VersionMessageHTTP, timeout int, httpTimeout int) {
 	currentScanConfigMu.Lock()
 	defer currentScanConfigMu.Unlock()
 	currentScanConfig = &types.ScanConfig{
@@ -17,6 +17,7 @@ func SetScanConfig(mode types.ScanMode, selfMessage *types.VersionMessage, selfH
 		SelfMessage: selfMessage,
 		SelfHTTP:    selfHTTP,
 		Timeout:     timeout,
+		HTTPTimeout: httpTimeout,
 	}
 }
 
@@ -33,18 +34,19 @@ func ScanOnceUDP(message *types.VersionMessage) error {
 }
 
 // RestartAutoScan sends a restart signal to all running auto scan loops.
-// This resets their timeout timers and triggers an immediate scan.
-func RestartAutoScan() {
+// skipHTTPImmediateScan: if true (e.g. after scan-now), HTTP loop only resets timeout; next scan in 30s.
+func RestartAutoScan(skipHTTPImmediateScan bool) {
 	autoScanControlMu.Lock()
 	defer autoScanControlMu.Unlock()
 
 	if autoScanRestartCh == nil {
 		tool.DefaultLogger.Debug("No auto scan restart channel, creating one")
-		autoScanRestartCh = make(chan struct{}, 1)
+		autoScanRestartCh = make(chan restartAction, 1)
 	}
 
+	action := restartAction{SkipHTTPImmediateScan: skipHTTPImmediateScan}
 	select {
-	case autoScanRestartCh <- struct{}{}:
+	case autoScanRestartCh <- action:
 		tool.DefaultLogger.Info("Auto scan restart signal sent")
 	default:
 		tool.DefaultLogger.Debug("Auto scan restart channel full, signal already pending")
@@ -58,9 +60,10 @@ func IsAutoScanRunning() bool {
 	return autoScanHTTPRunning || autoScanUDPRunning
 }
 
-// ScanNow performs a single scan based on current configuration.
-// If auto scan has timed out (stopped), it restarts the auto scan loops.
-// If auto scan is still running, it sends a restart signal to reset the timeout.
+// ScanNow performs scan-now: HTTP scan only (sync), then restarts/resumes normal auto scan in background.
+// - scan-now: executes HTTP scan only; returns after HTTP scan completes so API can return device list.
+// - other/normal scan: unchanged (auto scan by Mode: UDP, HTTP, or Mixed runs in background).
+// When SelfHTTP is nil, falls back to legacy one-shot by Mode.
 // Returns error if scan config is not set or scan fails.
 func ScanNow() error {
 	config := GetScanConfig()
@@ -68,15 +71,32 @@ func ScanNow() error {
 		return fmt.Errorf("scan config not set")
 	}
 
-	tool.DefaultLogger.Info("Performing manual scan...")
+	tool.DefaultLogger.Info("Performing manual scan (HTTP)...")
+
+	if config.SelfHTTP != nil {
+		tool.DefaultLogger.Debug("scan-now: executing HTTP scan only...")
+		if err := ScanOnceHTTP(config.SelfHTTP); err != nil {
+			return err
+		}
+		go func() {
+			if IsAutoScanRunning() {
+				tool.DefaultLogger.Debug("Auto scan is running, sending restart signal (HTTP next scan in 30s)")
+				RestartAutoScan(true)
+			} else {
+				tool.DefaultLogger.Info("Auto scan has stopped, restarting auto scan loops (HTTP first scan in 30s)")
+				restartAutoScanLoops(config, true)
+			}
+		}()
+		return nil
+	}
 
 	go func() {
 		if IsAutoScanRunning() {
 			tool.DefaultLogger.Debug("Auto scan is running, sending restart signal")
-			RestartAutoScan()
+			RestartAutoScan(false)
 		} else {
 			tool.DefaultLogger.Info("Auto scan has stopped, restarting auto scan loops")
-			restartAutoScanLoops(config)
+			restartAutoScanLoops(config, false)
 		}
 	}()
 
@@ -89,14 +109,10 @@ func ScanNow() error {
 		return ScanOnceUDP(config.SelfMessage)
 
 	case types.ScanModeHTTP:
-		if config.SelfHTTP == nil {
-			return fmt.Errorf("self HTTP message not configured for HTTP scan")
-		}
-		tool.DefaultLogger.Debug("Performing HTTP scan...")
-		return ScanOnceHTTP(config.SelfHTTP)
+		return fmt.Errorf("self HTTP message not configured for HTTP scan")
 
 	case types.ScanModeMixed:
-		var udpErr, httpErr error
+		var udpErr error
 		var wg sync.WaitGroup
 		if config.SelfMessage != nil {
 			wg.Add(1)
@@ -109,20 +125,9 @@ func ScanNow() error {
 				}
 			}()
 		}
-		if config.SelfHTTP != nil {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				tool.DefaultLogger.Debug("Performing HTTP scan (mixed mode)...")
-				httpErr = ScanOnceHTTP(config.SelfHTTP)
-				if httpErr != nil {
-					tool.DefaultLogger.Warnf("HTTP scan failed: %v", httpErr)
-				}
-			}()
-		}
 		wg.Wait()
-		if udpErr != nil && httpErr != nil {
-			return fmt.Errorf("both UDP and HTTP scan failed: UDP: %v, HTTP: %v", udpErr, httpErr)
+		if udpErr != nil {
+			return udpErr
 		}
 		return nil
 
@@ -132,27 +137,31 @@ func ScanNow() error {
 }
 
 // restartAutoScanLoops restarts the auto scan goroutines based on configuration.
-// This is called when auto scan has timed out and needs to be restarted.
-func restartAutoScanLoops(config *types.ScanConfig) {
+// skipHTTPInitialScan: if true (e.g. after scan-now), HTTP loop does not run initial scan; first scan in 30s.
+func restartAutoScanLoops(config *types.ScanConfig, skipHTTPInitialScan bool) {
 	if config == nil {
 		return
 	}
-	timeout := config.Timeout
+	udpTimeout := config.Timeout
+	httpTimeout := config.HTTPTimeout
+	if httpTimeout <= 0 {
+		httpTimeout = config.Timeout
+	}
 	switch config.Mode {
 	case types.ScanModeUDP:
 		if config.SelfMessage != nil {
-			go SendMulticastUsingUDPWithTimeout(config.SelfMessage, timeout)
+			go SendMulticastUsingUDPWithTimeout(config.SelfMessage, udpTimeout)
 		}
 	case types.ScanModeHTTP:
 		if config.SelfHTTP != nil {
-			go ListenMulticastUsingHTTPWithTimeout(config.SelfHTTP, timeout)
+			go ListenMulticastUsingHTTPWithTimeout(config.SelfHTTP, httpTimeout, skipHTTPInitialScan)
 		}
 	case types.ScanModeMixed:
 		if config.SelfMessage != nil {
-			go SendMulticastUsingUDPWithTimeout(config.SelfMessage, timeout)
+			go SendMulticastUsingUDPWithTimeout(config.SelfMessage, udpTimeout)
 		}
 		if config.SelfHTTP != nil {
-			go ListenMulticastUsingHTTPWithTimeout(config.SelfHTTP, timeout)
+			go ListenMulticastUsingHTTPWithTimeout(config.SelfHTTP, httpTimeout, skipHTTPInitialScan)
 		}
 	}
 }

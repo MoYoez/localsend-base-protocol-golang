@@ -31,13 +31,11 @@ type Config struct {
 	UseMultcastPort        int
 	UseConfigPath          string
 	UseDefaultUploadFolder string
-	UseLegacyMode          bool
 	UseReferNetworkInterface string // fixes when using virtual network interface. e.g. Clash TUN.
 	UsePin                 string
 	UseAutoSave            bool // if false, user require to confirm before recv.
 	UseAutoSaveFromFavorites bool // if true and useAutoSave is false, auto-accept from favorite devices only.
 	UseAlias               string
-	UseMixedScan           bool   // if true, use mixed scan mode, both UDP and HTTP.
 	SkipNotify             bool   // if true, skip notify mode.
 	UseHttp                bool   // if true, use http protocol; if false, use https protocol. Alias for protocol config.
 	ScanTimeout            int    // scan timeout in seconds, default 500. After timeout, auto scan will stop.

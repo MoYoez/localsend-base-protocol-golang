@@ -61,23 +61,12 @@ func main() {
 		}
 	}()
 
-	switch {
-	case FlagConfig.UseLegacyMode:
-		tool.DefaultLogger.Info("Using Legacy Mode: HTTP scanning")
-		boardcast.SetScanConfig(types.ScanModeHTTP, message, httpMessage, FlagConfig.ScanTimeout)
-		go boardcast.ListenMulticastUsingHTTPWithTimeout(httpMessage, FlagConfig.ScanTimeout)
-	case FlagConfig.UseMixedScan:
-		tool.DefaultLogger.Info("Using Mixed Scan Mode: UDP and HTTP scanning")
-		boardcast.SetScanConfig(types.ScanModeMixed, message, httpMessage, FlagConfig.ScanTimeout)
-		go boardcast.ListenMulticastUsingUDP(message)
-		go boardcast.SendMulticastUsingUDPWithTimeout(message, FlagConfig.ScanTimeout)
-		go boardcast.ListenMulticastUsingHTTPWithTimeout(httpMessage, FlagConfig.ScanTimeout)
-	default:
-		tool.DefaultLogger.Info("Using UDP multicast mode")
-		boardcast.SetScanConfig(types.ScanModeUDP, message, httpMessage, FlagConfig.ScanTimeout)
-		go boardcast.ListenMulticastUsingUDP(message)
-		go boardcast.SendMulticastUsingUDPWithTimeout(message, FlagConfig.ScanTimeout)
-	}
+	// Default: mixed scan (UDP + HTTP)
+	tool.DefaultLogger.Info("Using Mixed Scan Mode: UDP and HTTP scanning")
+	boardcast.SetScanConfig(types.ScanModeMixed, message, httpMessage, FlagConfig.ScanTimeout, 60)
+	go boardcast.ListenMulticastUsingUDP(message)
+	go boardcast.SendMulticastUsingUDPWithTimeout(message, FlagConfig.ScanTimeout)
+	go boardcast.ListenMulticastUsingHTTPWithTimeout(httpMessage, 60, false)
 
 	select {}
 }
