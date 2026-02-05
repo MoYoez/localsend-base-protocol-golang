@@ -75,7 +75,8 @@ func ScanNow() error {
 
 	if config.SelfHTTP != nil {
 		tool.DefaultLogger.Debug("scan-now: executing HTTP scan only...")
-		if err := ScanOnceHTTP(config.SelfHTTP); err != nil {
+		scanNowOpts := &HTTPScanOptions{Concurrency: scanNowHTTPConcurrency, RateLimitPPS: 0}
+		if err := ScanOnceHTTP(config.SelfHTTP, scanNowOpts); err != nil {
 			return err
 		}
 		go func() {

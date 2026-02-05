@@ -2,6 +2,7 @@ package boardcast
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,7 +14,16 @@ import (
 	"github.com/moyoez/localsend-go/share"
 	"github.com/moyoez/localsend-go/tool"
 	"github.com/moyoez/localsend-go/types"
+	"golang.org/x/time/rate"
 )
+
+// HTTPScanOptions configures concurrency and ICMP rate limit for HTTP scan.
+// Concurrency: max concurrent scan goroutines; 0 or large value = effectively unlimited (e.g. scan-now).
+// RateLimitPPS: ICMP probe rate limit (packets per second); 0 = no limit.
+type HTTPScanOptions struct {
+	Concurrency  int // max concurrent workers
+	RateLimitPPS int // 0 = no rate limit
+}
 
 // scanOneIPHTTP performs ICMP probe (host reachability), then POST register (https then http on EOF), parses response and stores device via share.SetUserScanCurrent.
 // Used by ListenMulticastUsingHTTPWithTimeout and ScanOnceHTTP. Returns true if a device was discovered and stored.
@@ -28,6 +38,7 @@ func scanOneIPHTTP(targetIP string, payloadBytes []byte, httpClient *http.Client
 		tool.DefaultLogger.Debugf("scanOneIPHTTP: failed to create request for %s: %v", urlStr, err)
 		return false
 	}
+	tool.DefaultLogger.Debugf("scanOneIPHTTP: sending request to %s", urlStr)
 	resp, err := httpClient.Do(req)
 	globalProtocol := "https"
 	if err != nil {
@@ -137,12 +148,6 @@ func ListenMulticastUsingHTTPWithTimeout(self *types.VersionMessageHTTP, timeout
 		tool.DefaultLogger.Info("Starting Legacy Mode HTTP scanning (scanning every 30 seconds, no timeout)")
 	}
 
-	payloadBytes, err := sonic.Marshal(self)
-	if err != nil {
-		tool.DefaultLogger.Warnf("ListenMulticastUsingHTTP: failed to marshal self message: %v", err)
-		return
-	}
-
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
@@ -171,37 +176,10 @@ func ListenMulticastUsingHTTPWithTimeout(self *types.VersionMessageHTTP, timeout
 	startTime := time.Now()
 
 	scanOnce := func() {
-		targets, err := getCachedNetworkIPs()
-		if err != nil {
-			tool.DefaultLogger.Warnf("ListenMulticastUsingHTTP: failed to get network IPs: %v", err)
-			return
+		opts := &HTTPScanOptions{Concurrency: autoScanConcurrencyLimit, RateLimitPPS: autoScanICMPRatePPS}
+		if err := ScanOnceHTTP(self, opts); err != nil {
+			tool.DefaultLogger.Warnf("ListenMulticastUsingHTTP: scan failed: %v", err)
 		}
-		if len(targets) == 0 {
-			tool.DefaultLogger.Warn("ListenMulticastUsingHTTP: no usable local IPv4 addresses found")
-			return
-		}
-		selfIPs := tool.GetLocalIPv4Set()
-		filtered := targets[:0]
-		for _, ip := range targets {
-			if _, isSelf := selfIPs[ip]; isSelf {
-				continue
-			}
-			filtered = append(filtered, ip)
-		}
-		targets = filtered
-
-		sem := make(chan struct{}, httpScanConcurrencyLimit)
-		var wg sync.WaitGroup
-		for _, ip := range targets {
-			wg.Add(1)
-			go func(targetIP string) {
-				defer wg.Done()
-				sem <- struct{}{}
-				defer func() { <-sem }()
-				scanOneIPHTTP(targetIP, payloadBytes, tool.DetectHttpClient)
-			}(ip)
-		}
-		wg.Wait()
 	}
 
 	if !skipInitialScan {
@@ -231,9 +209,17 @@ func ListenMulticastUsingHTTPWithTimeout(self *types.VersionMessageHTTP, timeout
 }
 
 // ScanOnceHTTP performs a single HTTP scan for devices.
-func ScanOnceHTTP(self *types.VersionMessageHTTP) error {
+// opts: nil or RateLimitPPS=0 and Concurrency=0 means unlimited (scan-now style).
+func ScanOnceHTTP(self *types.VersionMessageHTTP, opts *HTTPScanOptions) error {
 	if self == nil {
 		return fmt.Errorf("self message is nil")
+	}
+	if opts == nil {
+		opts = &HTTPScanOptions{Concurrency: scanNowHTTPConcurrency, RateLimitPPS: 0}
+	}
+	concurrency := opts.Concurrency
+	if concurrency <= 0 {
+		concurrency = scanNowHTTPConcurrency
 	}
 	payloadBytes, err := sonic.Marshal(self)
 	if err != nil {
@@ -246,7 +232,7 @@ func ScanOnceHTTP(self *types.VersionMessageHTTP) error {
 	if len(targets) == 0 {
 		return fmt.Errorf("no usable local IPv4 addresses found")
 	}
-	tool.DefaultLogger.Debugf("ScanOnceHTTP: scanning %d IP addresses", len(targets))
+	tool.DefaultLogger.Debugf("ScanOnceHTTP: scanning %d IP addresses (concurrency=%d, ratePPS=%d)", len(targets), concurrency, opts.RateLimitPPS)
 
 	selfIPs := tool.GetLocalIPv4Set()
 	filtered := targets[:0]
@@ -258,14 +244,29 @@ func ScanOnceHTTP(self *types.VersionMessageHTTP) error {
 	}
 	targets = filtered
 
-	sem := make(chan struct{}, httpScanConcurrencyLimit)
+	var limiter *rate.Limiter
+	if opts.RateLimitPPS > 0 {
+		burst := opts.RateLimitPPS + 10
+		if burst < 20 {
+			burst = 20
+		}
+		limiter = rate.NewLimiter(rate.Limit(opts.RateLimitPPS), burst)
+	}
+
+	sem := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
+	ctx := context.Background()
 	for _, ip := range targets {
 		wg.Add(1)
 		go func(targetIP string) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
+			if limiter != nil {
+				if err := limiter.Wait(ctx); err != nil {
+					return
+				}
+			}
 			scanOneIPHTTP(targetIP, payloadBytes, tool.DetectHttpClient)
 		}(ip)
 	}

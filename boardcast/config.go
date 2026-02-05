@@ -15,8 +15,12 @@ import (
 const (
 	defaultMultcastAddress = "224.0.0.167"
 	defaultMultcastPort    = 53317 // UDP & HTTP
-	// httpScanConcurrencyLimit limits the number of concurrent HTTP scan goroutines
-	httpScanConcurrencyLimit = 25
+	// scanNowHTTPConcurrency is the concurrency cap for scan-now (no rate limit; high concurrency for speed)
+	scanNowHTTPConcurrency = 256
+	// autoScanConcurrencyLimit limits concurrent HTTP scan goroutines for periodic auto scan (16~32)
+	autoScanConcurrencyLimit = 24
+	// autoScanICMPRatePPS is the ICMP probe rate limit (packets per second) for auto scan; /24 ~ 6~12s
+	autoScanICMPRatePPS = 30
 	// icmpProbeTimeout is the timeout for ICMP echo probe (host reachability before HTTP register)
 	icmpProbeTimeout = 200 * time.Millisecond
 )
