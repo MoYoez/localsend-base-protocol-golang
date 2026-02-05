@@ -74,8 +74,8 @@ func ScanNow() error {
 	tool.DefaultLogger.Info("Performing manual scan (HTTP)...")
 
 	if config.SelfHTTP != nil {
-		tool.DefaultLogger.Debug("scan-now: executing HTTP scan only...")
-		scanNowOpts := &HTTPScanOptions{Concurrency: scanNowHTTPConcurrency, RateLimitPPS: 0}
+		tool.DefaultLogger.Debug("scan-now: executing HTTP scan with default background scan options...")
+		scanNowOpts := &HTTPScanOptions{Concurrency: autoScanConcurrencyLimit, RateLimitPPS: autoScanICMPRatePPS}
 		if err := ScanOnceHTTP(config.SelfHTTP, scanNowOpts); err != nil {
 			return err
 		}

@@ -267,7 +267,7 @@ func ScanOnceHTTP(self *types.VersionMessageHTTP, opts *HTTPScanOptions) error {
 					return
 				}
 			}
-			scanOneIPHTTP(targetIP, payloadBytes, tool.DetectHttpClient)
+			scanOneIPHTTP(targetIP, payloadBytes, tool.GetScanHttpClient())
 		}(ip)
 	}
 	wg.Wait()
