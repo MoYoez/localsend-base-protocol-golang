@@ -18,7 +18,7 @@ import (
 
 const (
 	screenshotCacheKey   = "steam_screenshots"
-	duplicateMinSizeKB   = 20
+	duplicateMinSizeKB   = 30
 	duplicateMinSizeByte = duplicateMinSizeKB * 1024
 )
 
