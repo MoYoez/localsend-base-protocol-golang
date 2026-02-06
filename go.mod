@@ -1,6 +1,6 @@
 module github.com/moyoez/localsend-go
 
-go 1.24.4
+go 1.25.7
 
 require (
 	github.com/FloatTech/ttl v0.0.0-20250224045156-012b1463287d
