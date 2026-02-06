@@ -6,7 +6,8 @@ type UserPrepareUploadRequest struct {
 	Files                 map[string]FileInput `json:"files,omitempty"`
 	TextContent           string               `json:"textContent,omitempty"` // Optional: for single text/plain send, injected as preview when building prepare-upload
 	UseFolderUpload       bool                 `json:"useFolderUpload,omitempty"`
-	FolderPath            string               `json:"folderPath,omitempty"`
+	FolderPath            string               `json:"folderPath,omitempty"`   // Single folder (backward compatible)
+	FolderPaths           []string             `json:"folderPaths,omitempty"` // Multiple folders
 	UseFastSender         bool                 `json:"useFastSender,omitempty"`
 	UseFastSenderIPSuffex string               `json:"useFastSenderIPSuffex,omitempty"`
 	UseFastSenderIp       string               `json:"useFastSenderIp,omitempty"`
@@ -25,7 +26,8 @@ type UserUploadBatchRequest struct {
 	SessionId       string             `json:"sessionId"`
 	Files           []UserUploadFileItem `json:"files,omitempty"`
 	UseFolderUpload bool               `json:"useFolderUpload,omitempty"`
-	FolderPath      string             `json:"folderPath,omitempty"`
+	FolderPath      string               `json:"folderPath,omitempty"`   // Single folder (backward compatible)
+	FolderPaths     []string             `json:"folderPaths,omitempty"`  // Multiple folders
 }
 
 // UserUploadFileItem represents a single file in batch upload

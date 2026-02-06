@@ -151,21 +151,28 @@ func UserPrepareUpload(c *gin.Context) {
 	maps.Copy(additionalFiles, request.Files)
 
 	if request.UseFolderUpload {
-		if request.FolderPath == "" {
-			c.JSON(http.StatusBadRequest, tool.FastReturnError("folderPath is required when useFolderUpload is true"))
+		// Build folder list: FolderPaths takes precedence, fallback to FolderPath
+		folderPaths := request.FolderPaths
+		if len(folderPaths) == 0 && request.FolderPath != "" {
+			folderPaths = []string{request.FolderPath}
+		}
+		if len(folderPaths) == 0 {
+			c.JSON(http.StatusBadRequest, tool.FastReturnError("folderPath or folderPaths is required when useFolderUpload is true"))
 			return
 		}
-		tool.DefaultLogger.Infof("[PrepareUpload] Processing folder upload: %s", request.FolderPath)
-		fileInputMap, _, err := tool.ProcessFolderForUpload(request.FolderPath, false)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("Failed to process folder: %v", err)))
-			return
+		request.Files = make(map[string]types.FileInput, len(additionalFiles))
+		for _, folderPath := range folderPaths {
+			tool.DefaultLogger.Infof("[PrepareUpload] Processing folder upload: %s", folderPath)
+			fileInputMap, _, err := tool.ProcessFolderForUpload(folderPath, false)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("Failed to process folder %s: %v", folderPath, err)))
+				return
+			}
+			for fileId, fileInput := range fileInputMap {
+				request.Files[fileId] = *fileInput
+			}
+			tool.DefaultLogger.Infof("[PrepareUpload] Prepared %d files from folder %s", len(fileInputMap), folderPath)
 		}
-		request.Files = make(map[string]types.FileInput, len(fileInputMap)+len(additionalFiles))
-		for fileId, fileInput := range fileInputMap {
-			request.Files[fileId] = *fileInput
-		}
-		tool.DefaultLogger.Infof("[PrepareUpload] Prepared %d files from folder", len(fileInputMap))
 		if len(additionalFiles) > 0 {
 			maps.Copy(request.Files, additionalFiles)
 		}
@@ -386,13 +393,13 @@ func UserUploadBatch(c *gin.Context) {
 	copy(additionalFiles, request.Files)
 
 	if request.UseFolderUpload {
-		if request.FolderPath == "" {
-			c.JSON(http.StatusBadRequest, tool.FastReturnError("folderPath is required when useFolderUpload is true"))
-			return
+		// Build folder list: FolderPaths takes precedence, fallback to FolderPath
+		folderPaths := request.FolderPaths
+		if len(folderPaths) == 0 && request.FolderPath != "" {
+			folderPaths = []string{request.FolderPath}
 		}
-		_, fileIdToPathMap, err := tool.ProcessFolderForUpload(request.FolderPath, false)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("Failed to process folder: %v", err)))
+		if len(folderPaths) == 0 {
+			c.JSON(http.StatusBadRequest, tool.FastReturnError("folderPath or folderPaths is required when useFolderUpload is true"))
 			return
 		}
 		sessionInfo := UserUploadSessions.Get(request.SessionId)
@@ -400,17 +407,24 @@ func UserUploadBatch(c *gin.Context) {
 			c.JSON(http.StatusNotFound, tool.FastReturnError("Session not found or expired"))
 			return
 		}
-		request.Files = make([]types.UserUploadFileItem, 0, len(fileIdToPathMap)+len(additionalFiles))
-		for fileId, filePath := range fileIdToPathMap {
-			token, ok := sessionInfo.Tokens[fileId]
-			if !ok {
-				continue
+		request.Files = make([]types.UserUploadFileItem, 0, len(additionalFiles))
+		for _, folderPath := range folderPaths {
+			_, fileIdToPathMap, err := tool.ProcessFolderForUpload(folderPath, false)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, tool.FastReturnError(fmt.Sprintf("Failed to process folder %s: %v", folderPath, err)))
+				return
 			}
-			request.Files = append(request.Files, types.UserUploadFileItem{
-				FileId:  fileId,
-				Token:   token,
-				FileUrl: "file://" + filePath,
-			})
+			for fileId, filePath := range fileIdToPathMap {
+				token, ok := sessionInfo.Tokens[fileId]
+				if !ok {
+					continue
+				}
+				request.Files = append(request.Files, types.UserUploadFileItem{
+					FileId:  fileId,
+					Token:   token,
+					FileUrl: "file://" + filePath,
+				})
+			}
 		}
 		if len(additionalFiles) > 0 {
 			request.Files = append(request.Files, additionalFiles...)
