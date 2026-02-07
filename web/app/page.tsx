@@ -2,8 +2,10 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
+import { FileDetailModal } from "./components/FileDetailModal";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { useLanguage } from "./context/LanguageContext";
+import { splitFilePath } from "./utils/filePathDisplay";
 import { LuSendToBack } from "react-icons/lu";
 
 interface FileInfo {
@@ -50,6 +52,11 @@ function DownloadContent() {
   const [error, setError] = useState<string | null>(null);
   const [needsPin, setNeedsPin] = useState(false);
   const [filePage, setFilePage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedFile, setSelectedFile] = useState<{
+    fileId: string;
+    file: FileInfo;
+  } | null>(null);
 
   const fetchFileList = useCallback(
     async (pinValue?: string) => {
@@ -110,6 +117,10 @@ function DownloadContent() {
     if (sessionId) fetchFileList();
     else setLoading(false);
   }, [sessionId, fetchFileList]);
+
+  useEffect(() => {
+    setFilePage(1);
+  }, [searchQuery]);
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -243,12 +254,22 @@ function DownloadContent() {
     return null;
   }
 
-  const files = Object.entries(data.files);
-  const totalFiles = files.length;
+  const allFiles = Object.entries(data.files);
+  const query = searchQuery.trim().toLowerCase();
+  const filteredFiles =
+    query === ""
+      ? allFiles
+      : allFiles.filter(([, file]) =>
+          file.fileName.toLowerCase().includes(query)
+        );
+  const totalFiles = filteredFiles.length;
   const totalPages = Math.max(1, Math.ceil(totalFiles / FILES_PAGE_SIZE));
   const safePage = Math.min(Math.max(1, filePage), totalPages);
   const startIdx = (safePage - 1) * FILES_PAGE_SIZE;
-  const pageFiles = files.slice(startIdx, startIdx + FILES_PAGE_SIZE);
+  const pageFiles = filteredFiles.slice(
+    startIdx,
+    startIdx + FILES_PAGE_SIZE
+  );
   const showPagination = totalFiles > FILES_PAGE_SIZE;
   const from = startIdx + 1;
   const to = Math.min(startIdx + FILES_PAGE_SIZE, totalFiles);
@@ -260,9 +281,18 @@ function DownloadContent() {
       </div>
       <div className="w-full max-w-2xl">
         <h1 className="mb-2 text-2xl font-semibold">{t("files.title")}</h1>
-        <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
           {t("files.from")} {data.info.alias}
         </p>
+
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={t("files.searchPlaceholder")}
+          className="mb-4 w-full rounded border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+          aria-label={t("files.searchPlaceholder")}
+        />
 
         {showPagination && (
           <p className="mb-3 text-sm text-zinc-500 dark:text-zinc-400">
@@ -275,28 +305,47 @@ function DownloadContent() {
         )}
 
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-700">
-          {pageFiles.map(([fileId, file]) => (
-            <li
-              key={fileId}
-              className="flex items-center justify-between gap-4 py-4"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{file.fileName}</p>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  {formatFileSize(file.size)}
-                  {file.fileType && ` • ${file.fileType}`}
-                </p>
-              </div>
-              <a
-                href={getDownloadUrl(fileId)}
-                download={file.fileName}
-                className="shrink-0 rounded bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          {pageFiles.map(([fileId, file]) => {
+            const { fileName: displayName } = splitFilePath(file.fileName);
+            return (
+              <li
+                key={fileId}
+                className="flex items-center justify-between gap-4 py-4"
               >
-                {t("files.download")}
-              </a>
-            </li>
-          ))}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{displayName}</p>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                    {formatFileSize(file.size)}
+                    {file.fileType && ` • ${file.fileType}`}
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFile({ fileId, file })}
+                    className="rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                  >
+                    {t("files.viewDetail")}
+                  </button>
+                  <a
+                    href={getDownloadUrl(fileId)}
+                    download={file.fileName}
+                    className="rounded bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                  >
+                    {t("files.download")}
+                  </a>
+                </div>
+              </li>
+            );
+          })}
         </ul>
+
+        {selectedFile && (
+          <FileDetailModal
+            file={selectedFile.file}
+            onClose={() => setSelectedFile(null)}
+          />
+        )}
 
         {showPagination && (
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-700">
