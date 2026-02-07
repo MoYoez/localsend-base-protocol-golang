@@ -275,12 +275,12 @@ function DownloadContent() {
   const to = Math.min(startIdx + FILES_PAGE_SIZE, totalFiles);
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-8">
-      <div className="absolute right-6 top-6">
+    <main className="flex min-h-screen flex-col items-center p-4 sm:p-8">
+      <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
         <LanguageSwitcher />
       </div>
       <div className="w-full max-w-2xl">
-        <h1 className="mb-2 text-2xl font-semibold">{t("files.title")}</h1>
+        <h1 className="mb-2 text-xl font-semibold sm:text-2xl">{t("files.title")}</h1>
         <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
           {t("files.from")} {data.info.alias}
         </p>
@@ -290,7 +290,7 @@ function DownloadContent() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder={t("files.searchPlaceholder")}
-          className="mb-4 w-full rounded border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+          className="mb-4 w-full min-h-[44px] rounded-lg border border-zinc-300 px-4 py-2.5 text-base dark:border-zinc-700 dark:bg-zinc-800 dark:text-white sm:min-h-0 sm:rounded sm:py-2 sm:text-sm"
           aria-label={t("files.searchPlaceholder")}
         />
 
@@ -310,27 +310,29 @@ function DownloadContent() {
             return (
               <li
                 key={fileId}
-                className="flex items-center justify-between gap-4 py-4"
+                className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{displayName}</p>
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">
+                    {displayName}
+                  </p>
+                  <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">
                     {formatFileSize(file.size)}
                     {file.fileType && ` • ${file.fileType}`}
                   </p>
                 </div>
-                <div className="flex shrink-0 gap-2">
+                <div className="flex shrink-0 gap-2 sm:flex-row">
                   <button
                     type="button"
                     onClick={() => setSelectedFile({ fileId, file })}
-                    className="rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                    className="min-h-[44px] flex-1 rounded-lg border border-zinc-300 px-3 py-2.5 text-sm text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-800 active:bg-zinc-200 dark:border-zinc-600 dark:bg-zinc-800/50 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200 dark:active:bg-zinc-600 sm:min-h-0 sm:flex-initial sm:py-1.5"
                   >
                     {t("files.viewDetail")}
                   </button>
                   <a
                     href={getDownloadUrl(fileId)}
                     download={file.fileName}
-                    className="rounded bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                    className="min-h-[44px] flex-1 rounded-lg bg-zinc-900 px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-zinc-800 active:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:active:bg-zinc-300 sm:min-h-0 sm:flex-initial sm:py-2"
                   >
                     {t("files.download")}
                   </a>
@@ -357,7 +359,7 @@ function DownloadContent() {
                 type="button"
                 onClick={() => setFilePage((p) => Math.max(1, p - 1))}
                 disabled={safePage <= 1}
-                className="rounded border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                className="min-h-[44px] rounded-lg border border-zinc-300 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 sm:min-h-0 sm:py-1.5"
               >
                 {t("pagination.prev")}
               </button>
@@ -367,7 +369,7 @@ function DownloadContent() {
                   setFilePage((p) => Math.min(totalPages, p + 1))
                 }
                 disabled={safePage >= totalPages}
-                className="rounded border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                className="min-h-[44px] rounded-lg border border-zinc-300 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 sm:min-h-0 sm:py-1.5"
               >
                 {t("pagination.next")}
               </button>
